@@ -10,7 +10,7 @@
 | ---------------- | -------------- |
 | Juuso SN         | 225045451      |
 | Matengu TT       | 224096281      |
-| Ndakolife PN     | 225038109      |
+| Ndakolute PN     | 225031809      |
 | Amushila AH      | 225085674      |
 | Neema W          | 222098694      |
 | Haufiku MV       | 225059738      |
