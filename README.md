@@ -6,23 +6,23 @@
 
 ## **Group Members**
 
-| Name             | Student Number |
-| ---------------- | -------------- |
-| Juuso SN         | 225045451      |
-| Matengu TT       | 224096281      |
-| Ndakolute PN     | 225031809      |
-| Amushila AH      | 225085674      |
-| Neema W          | 222098694      |
-| Haufiku MV       | 225059738      |
-| Shikongo NI       | 225056186      |
-| Nkosi JM         | 225056437      |
-| Ndilil MN        | 225057609      |
-| Kandjabanga PTO | 221275711      |
-| Johannes AT      | 222092203      |
-| Ingula TN        | 224145959      |
-| Ininga FI        | 225058251      |
-| Frans IMT        | 225058626      |
-| Nicodemus TN     | 225061066      |
+| Name             | Student Number | Role  |
+| ---------------- | -------------- | ----- |
+| Juuso SN         | 225045451      | Documentation lead        |
+| Matengu TT       | 224096281      | GitHub Manager       |
+| Ndakolute PN     | 225031809      | Firebase lead       |
+| Amushila AH      | 225085674      | Documentation lead       |
+| Neema W          | 222098694      | Firebase lead       |
+| Haufiku MV       | 225059738      | Firebase lead      |
+| Shikongo NI      | 225056186      | UI/UX lead      |
+| Nkosi JM         | 225056437      | Lead developer      |
+| Ndili MN         | 225057609      | UI/UX lead       |
+| Kandjabanga PTO  | 221275711      |       |
+| Johannes AT      | 222092203      | GitHub Manager       |
+| Ingula TN        | 224145959      | UI/UX lead      |
+| Ininga FI        | 225058251      | GitHub Manager       |
+| Frans IMT        | 225058626      | Project manager      |
+| Nicodemus TN     | 225061066      | Lead developer       |
 
 
 
