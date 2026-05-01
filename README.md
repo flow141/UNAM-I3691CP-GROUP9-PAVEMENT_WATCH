@@ -36,6 +36,6 @@
 
 ## **App Description**
 
-A mobile system for reporting and managing road defects. Inspectors capture geo‑tagged photos, log defect types, and track repair progress with real‑time status updates. Engineers create work orders, crews provide after‑repair photos, and all issues appear on a map for easier oversight and coordination.
+Pavement-Watch is a mobile application designed to improve the reporting and management of road infrastructure issues such as potholes and surface damage. It enables users to quickly submit reports with images and GPS location, while allowing municipal authorities to track, verify, and resolve issues efficiently in real time.
 
 
