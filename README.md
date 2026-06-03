@@ -16,7 +16,7 @@
 | Haufiku MV       | 225059738      | Firebase lead      |
 | Shikongo NI      | 225056186      | UI/UX lead      |
 | Nkosi JM         | 225056437      | Lead developer      |
-| Ndili MN         | 225057609      | UI/UX lead       |
+| Ndiili MN        | 225057609      | UI/UX lead       |
 | Kandjabanga PTO  | 221275711      |       |
 | Johannes AT      | 222092203      | GitHub Manager       |
 | Ingula TN        | 224145959      | UI/UX lead      |
