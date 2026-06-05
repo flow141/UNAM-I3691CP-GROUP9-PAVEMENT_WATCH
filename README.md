@@ -17,7 +17,7 @@
 | Shikongo NI      | 225056186      | UI/UX lead      |
 | Nkosi JM         | 225056437      | Lead developer      |
 | Ndiili MN        | 225057609      | UI/UX lead       |
-| Kandjabanga PTO  | 221275711      | UI/UX LEAD      |
+| Kandjabanga PTO  | 221275711      | UI/UX lead     |
 | Johannes AT      | 222092203      | GitHub Manager       |
 | Ingula TN        | 224145959      | UI/UX lead      |
 | Ininga FI        | 225058251      | GitHub Manager       |
