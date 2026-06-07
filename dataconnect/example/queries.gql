@@ -1,0 +1,44 @@
+mutation CreateReport($latitude: Float!, $longitude: Float!, $status: String!, $description: String!) @auth(level: USER) {
+  report_insert(data: {
+    latitude: $latitude,
+    longitude: $longitude,
+    status: $status,
+    description: $description,
+    createdAt_expr: "request.time",
+    reporterId_expr: "auth.uid"
+  })
+}
+
+query ListReportsByStatus($status: String!) @auth(level: USER) {
+  reports(where: {status: {eq: $status}}, orderBy: [{createdAt: DESC}]) {
+    id
+    description
+    status
+    createdAt
+  }
+}
+
+mutation AssignWorkerToReport($reportId: UUID!, $workerId: UUID!, $notes: String) @auth(expr: "auth.token.role == 'admin'") {
+  assignment_insert(data: {
+    reportId: $reportId,
+    workerId: $workerId,
+    notes: $notes,
+    assignedAt_expr: "request.time"
+  })
+}
+
+query GetUserDashboard @auth(level: USER) {
+  user(key: {id_expr: "auth.uid"}) {
+    displayName
+    email
+    assignments_on_worker {
+      report {
+        description
+        status
+        latitude
+        longitude
+      }
+      assignedAt
+    }
+  }
+}

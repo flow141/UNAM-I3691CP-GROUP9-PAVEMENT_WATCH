@@ -1,0 +1,38 @@
+mutation SeedDatabase @transaction {
+  user_insertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      email: "admin@example.com",
+      role: "admin",
+      displayName: "Admin User"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440002",
+      email: "worker@example.com",
+      role: "worker",
+      displayName: "Field Worker"
+    }
+  ])
+  category_insertMany(data: [
+    {
+      id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      name: "Infrastructure"
+    },
+    {
+      id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12",
+      name: "Safety"
+    }
+  ])
+  report_insertMany(data: [
+    {
+      id: "b1fcfd00-0000-0000-0000-000000000001",
+      latitude: 37.7749,
+      longitude: -122.4194,
+      status: "OPEN",
+      description: "Pothole on Main St",
+      createdAt: "2023-10-01T12:00:00Z",
+      categoryId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      reporterId: "550e8400-e29b-41d4-a716-446655440001"
+    }
+  ])
+}

@@ -1,0 +1,36 @@
+type User @table {
+  email: String!
+  role: String!
+  displayName: String
+  phoneNumber: String
+}
+
+type Category @table {
+  name: String!
+  iconUrl: String
+}
+
+type Report @table {
+  latitude: Float!
+  longitude: Float!
+  status: String!
+  description: String!
+  createdAt: Timestamp!
+  photoUrl: String
+  reporter: User
+  category: Category
+}
+
+type Comment @table {
+  content: String!
+  createdAt: Timestamp!
+  author: User!
+  report: Report!
+}
+
+type Assignment @table(key: ["report", "worker"]) {
+  report: Report!
+  worker: User!
+  assignedAt: Timestamp!
+  notes: String
+}
