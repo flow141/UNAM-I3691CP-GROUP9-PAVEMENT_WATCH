@@ -8,12 +8,13 @@ export function Header({ title, subtitle, onBack }) {
         <Pressable onPress={onBack} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </Pressable>
-      ) : null}
+      ) : null} 
       <Text style={[styles.title, subtitle && styles.titleLight]}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
   );
 }
+
 
 export function PageHeader({ title }) {
   return (
