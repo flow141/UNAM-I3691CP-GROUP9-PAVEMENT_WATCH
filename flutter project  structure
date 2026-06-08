@@ -1,0 +1,15 @@
+lib/
+│
+├── main.dart
+├── screens/
+│     ├── login_screen.dart
+│     ├── home_screen.dart
+│     ├── report_screen.dart
+│
+├── services/
+│     ├── firebase_service.dart
+│
+├── models/
+│     ├── report_model.dart
+│
+└── widgets/
