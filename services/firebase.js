@@ -34,7 +34,7 @@ export const signUp = async (email, password, userData) => {
     console.error('SignUp error:', error.message);
     return { success: false, error: error.message };
   }
-}; 
+};
 
 export const signIn = async (email, password) => {
   try {
