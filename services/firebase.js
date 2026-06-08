@@ -35,7 +35,6 @@ export const signUp = async (email, password, userData) => {
     return { success: false, error: error.message };
   }
 };
-
 export const signIn = async (email, password) => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
