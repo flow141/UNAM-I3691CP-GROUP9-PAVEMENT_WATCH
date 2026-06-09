@@ -1,0 +1,29 @@
+User opens app
+
+↓
+
+Take pothole picture
+
+↓
+
+GPS collected
+
+↓
+
+Submit
+
+↓
+
+Firebase Storage saves image
+
+↓
+
+Firestore saves report
+
+↓
+
+Municipality views report
+
+↓
+
+Status updated
