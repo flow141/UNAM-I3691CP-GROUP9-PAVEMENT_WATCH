@@ -1,0 +1,13 @@
+reports
+
+   reportID
+
+        image
+
+        latitude
+
+        longitude
+
+        status
+
+        timestamp
