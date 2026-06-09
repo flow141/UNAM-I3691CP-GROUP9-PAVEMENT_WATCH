@@ -1,0 +1,13 @@
+src/
+
+├── screens/
+
+│     ├── HomeScreen.js
+
+│     └── ReportScreen.js
+
+├── services/
+
+│     └── firebaseService.js
+
+└── App.js
