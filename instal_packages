@@ -1,0 +1,9 @@
+npm install @react-navigation/native
+npm install react-native-screens react-native-safe-area-context
+npm install @react-native-firebase/app
+npm install @react-native-firebase/firestore
+npm install @react-native-firebase/storage
+npm install @react-native-firebase/auth
+npm install react-native-image-picker
+npm install react-native-geolocation-service
+npm install react-native-maps
