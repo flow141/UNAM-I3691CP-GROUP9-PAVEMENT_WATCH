@@ -1,0 +1,29 @@
+import MapView, {
+
+Marker
+
+} from "react-native-maps";
+
+<MapView
+
+style={{
+
+flex:1
+
+}}
+
+>
+
+<Marker
+
+coordinate={{
+
+latitude:-22.57,
+
+longitude:17.08
+
+}}
+
+/>
+
+</MapView>
