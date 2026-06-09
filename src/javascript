@@ -1,0 +1,53 @@
+import React from "react";
+
+import {
+
+View,
+
+Button,
+
+Text
+
+} from "react-native";
+
+import {useState} from "react";
+
+import ReportScreen from "./ReportScreen";
+
+export default function HomeScreen(){
+
+const [open,setOpen]=useState(false);
+
+if(open){
+
+return <ReportScreen/>
+
+}
+
+return(
+
+<View style={{
+
+flex:1,
+
+justifyContent:"center",
+
+alignItems:"center"
+
+}}>
+
+<Text>Pavement Watch</Text>
+
+<Button
+
+title="Report Pothole"
+
+onPress={()=>setOpen(true)}
+
+/>
+
+</View>
+
+)
+
+}
