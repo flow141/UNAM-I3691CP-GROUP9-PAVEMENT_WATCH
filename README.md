@@ -14,8 +14,8 @@
 | Amushila AH      | 225085674      | Documentation lead       |
 | Neema W          | 222098694      | Firebase lead       |
 | Haufiku MV       | 225059738      | Firebase lead      |
-| Shikongo NI      | 225056186      | UI/UX lead      |
-| Nkosi JM         | 225056437      | Lead developer      |
+| Shikongo NI      | 225056186      | UI/UX lead          |
+| Nkosi JM         | 225056437      | Lead developer       |
 | Ndiili MN        | 225057609      | UI/UX lead           |
 | Kandjabanga PTO  | 221275711      | UI/UX lead           |
 | Johannes AT      | 222092203      | GitHub Manager       |
