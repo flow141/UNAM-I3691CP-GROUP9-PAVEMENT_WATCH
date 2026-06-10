@@ -14,8 +14,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
 import { ArrowLeft, Camera } from 'lucide-react-native';
 import { Screen } from '../../components/shared/Screen';
+import { GeoapifyMapView } from '../../components/shared/GeoapifyMapView';
 import { PrimaryButton } from '../../components/shared/ui';
 import { getJSON, setJSON } from '../../services/storage';
+import { reverseGeocode } from '../../services/geoapify';
+import { DEFAULT_MAP_REGION } from '../../constants/maps';
 import { colors, spacing, radius } from '../../constants/theme';
 
 const ISSUE_TYPES = ['Pothole', 'Broken Sidewalk', 'Road Crack', 'Damaged Sign', 'Street Light Out'];
@@ -26,6 +29,7 @@ export default function ReportIssue() {
   const [description, setDescription] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
   const [location, setLocation] = useState('Getting location...');
+  const [coords, setCoords] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -36,7 +40,15 @@ export default function ReportIssue() {
       }
 
       const pos = await Location.getCurrentPositionAsync({});
-      setLocation(`${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+      const nextCoords = {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      };
+      setCoords(nextCoords);
+      setLocation('Looking up address...');
+
+      const address = await reverseGeocode(nextCoords.latitude, nextCoords.longitude);
+      setLocation(address);
     })();
   }, []);
 
@@ -63,11 +75,18 @@ export default function ReportIssue() {
       return;
     }
 
+    if (!coords) {
+      Alert.alert('Location required', 'Waiting for GPS location. Please try again in a moment.');
+      return;
+    }
+
     const newReport = {
       id: Date.now(),
       title: issueType,
       description: description.trim(),
       location,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
       status: 'pending',
       date: new Date().toLocaleDateString(),
       time: new Date().toLocaleTimeString(),
@@ -115,6 +134,39 @@ export default function ReportIssue() {
         )}
 
         <Text style={styles.label}>Location</Text>
+        <View style={styles.mapPreview}>
+          <GeoapifyMapView
+            style={styles.map}
+            initialRegion={
+              coords
+                ? {
+                    latitude: coords.latitude,
+                    longitude: coords.longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                  }
+                : DEFAULT_MAP_REGION
+            }
+            markers={
+              coords
+                ? [
+                    {
+                      id: 'report-location',
+                      latitude: coords.latitude,
+                      longitude: coords.longitude,
+                      title: 'Report location',
+                      pinColor: colors.primary,
+                    },
+                  ]
+                : []
+            }
+            showsUserLocation
+            scrollEnabled={false}
+            zoomEnabled={false}
+            rotateEnabled={false}
+            pitchEnabled={false}
+          />
+        </View>
         <View style={styles.locationBox}>
           <Text style={styles.locationText}>📍 {location}</Text>
         </View>
@@ -222,6 +274,15 @@ const styles = StyleSheet.create({
   cameraText: {
     color: colors.textSecondary,
     fontSize: 14,
+  },
+  mapPreview: {
+    height: 180,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    marginBottom: spacing.sm,
+  },
+  map: {
+    flex: 1,
   },
   locationBox: {
     backgroundColor: '#F3F4F6',

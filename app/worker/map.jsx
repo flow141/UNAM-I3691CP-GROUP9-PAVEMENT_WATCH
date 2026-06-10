@@ -1,54 +1,82 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Search, Filter, Navigation } from 'lucide-react-native';
 import { Screen } from '../../components/shared/Screen';
 import { BottomNav } from '../../components/shared/BottomNav';
+import { GeoapifyMapView } from '../../components/shared/GeoapifyMapView';
+import { getJSON } from '../../services/storage';
+import { openDirections } from '../../services/maps';
+import {
+  DEFAULT_MAP_REGION,
+  STATUS_PIN_COLORS,
+  getRegionForCoordinates,
+  parseCoordinates,
+  reportToMapMarker,
+} from '../../constants/maps';
 import { colors, spacing, radius } from '../../constants/theme';
 
-const tasks = [
-  { id: 1, title: 'Large Pothole', lat: 37.7849, lng: -122.4094, status: 'in_progress', address: 'Main St & 5th Ave' },
-  { id: 2, title: 'Broken Sidewalk', lat: 37.7759, lng: -122.4178, status: 'pending', address: 'Oak Street' },
-  { id: 3, title: 'Damaged Sign', lat: 37.7699, lng: -122.4135, status: 'pending', address: 'Park Avenue' },
+const fallbackTasks = [
+  { id: 1, title: 'Large Pothole', latitude: -22.5619, longitude: 17.0758, status: 'in_progress', location: 'Independence Ave', address: 'Independence Ave' },
+  { id: 2, title: 'Broken Sidewalk', latitude: -22.5559, longitude: 17.0658, status: 'pending', location: 'Sam Nujoma Dr', address: 'Sam Nujoma Dr' },
+  { id: 3, title: 'Damaged Sign', latitude: -22.5699, longitude: 17.0585, status: 'pending', location: 'Robert Mugabe Ave', address: 'Robert Mugabe Ave' },
 ];
-
-const pinColors = {
-  pending: '#DC2626',
-  in_progress: '#F97316',
-  completed: '#16A34A',
-};
-
-const centerLat = tasks.reduce((sum, t) => sum + t.lat, 0) / tasks.length;
-const centerLng = tasks.reduce((sum, t) => sum + t.lng, 0) / tasks.length;
 
 export default function WorkerMap() {
   const router = useRouter();
   const [selectedTask, setSelectedTask] = useState(null);
+  const [markers, setMarkers] = useState([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        const workerTasks = await getJSON('workerTasks');
+        const source = workerTasks.length ? workerTasks : fallbackTasks;
+        const nextMarkers = source
+          .map((task) =>
+            reportToMapMarker({
+              ...task,
+              location: task.address || task.location,
+            })
+          )
+          .filter(Boolean);
+        setMarkers(nextMarkers);
+      })();
+    }, [])
+  );
+
+  const mapRegion =
+    markers.length > 0
+      ? getRegionForCoordinates(markers)
+      : DEFAULT_MAP_REGION;
+
+  const handleNavigate = () => {
+    if (!selectedTask) return;
+
+    const coords = parseCoordinates(
+      selectedTask.address || selectedTask.location,
+      selectedTask.latitude,
+      selectedTask.longitude
+    );
+
+    if (!coords) return;
+
+    openDirections({
+      ...coords,
+      label: selectedTask.title,
+    });
+  };
 
   return (
     <Screen edges={['top']} style={styles.screen}>
       <View style={styles.mapWrap}>
-        <MapView
+        <GeoapifyMapView
           style={StyleSheet.absoluteFill}
-          initialRegion={{
-            latitude: centerLat,
-            longitude: centerLng,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
-          }}
-        >
-          {tasks.map((task) => (
-            <Marker
-              key={task.id}
-              coordinate={{ latitude: task.lat, longitude: task.lng }}
-              title={task.title}
-              description={task.address}
-              pinColor={pinColors[task.status]}
-              onPress={() => setSelectedTask(task)}
-            />
-          ))}
-        </MapView>
+          initialRegion={mapRegion}
+          markers={markers}
+          showsUserLocation
+          onMarkerPress={(marker) => setSelectedTask(marker.data || marker)}
+        />
 
         <View style={styles.topBar}>
           <View style={styles.searchRow}>
@@ -62,9 +90,9 @@ export default function WorkerMap() {
 
         <View style={styles.legend}>
           <Text style={styles.legendTitle}>Status</Text>
-          <LegendItem color="#DC2626" label="Pending" />
-          <LegendItem color="#F97316" label="In Progress" />
-          <LegendItem color="#16A34A" label="Completed" />
+          <LegendItem color={STATUS_PIN_COLORS.pending} label="Pending" />
+          <LegendItem color={STATUS_PIN_COLORS.in_progress} label="In Progress" />
+          <LegendItem color={STATUS_PIN_COLORS.completed} label="Completed" />
         </View>
 
         {selectedTask ? (
@@ -75,7 +103,9 @@ export default function WorkerMap() {
                 <Text style={styles.closeBtn}>✕</Text>
               </Pressable>
             </View>
-            <Text style={styles.popupAddress}>{selectedTask.address}</Text>
+            <Text style={styles.popupAddress}>
+              {selectedTask.address || selectedTask.location}
+            </Text>
             <View style={styles.popupActions}>
               <View style={styles.statusPill}>
                 <Text style={styles.statusText}>
@@ -90,6 +120,9 @@ export default function WorkerMap() {
                 <Text style={styles.viewBtnText}>View Task</Text>
               </Pressable>
             </View>
+            <Pressable style={styles.navigateBtn} onPress={handleNavigate}>
+              <Text style={styles.navigateBtnText}>Get Directions</Text>
+            </Pressable>
           </View>
         ) : null}
       </View>
@@ -248,6 +281,19 @@ const styles = StyleSheet.create({
   },
   viewBtnText: {
     color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  navigateBtn: {
+    marginTop: spacing.sm,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  navigateBtnText: {
+    color: colors.primary,
     fontWeight: '600',
     fontSize: 14,
   },
