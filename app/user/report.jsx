@@ -7,6 +7,7 @@ import {
   Pressable,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -17,7 +18,7 @@ import { Screen } from '../../components/shared/Screen';
 import { GeoapifyMapView } from '../../components/shared/GeoapifyMapView';
 import { PrimaryButton } from '../../components/shared/ui';
 import { getJSON, setJSON } from '../../services/storage';
-import { auth, submitReport } from '../../services/firebase';
+import { auth, submitReport, uploadReportImage } from '../../services/firebase';
 import { reverseGeocode } from '../../services/geoapify';
 import { DEFAULT_MAP_REGION } from '../../constants/maps';
 import { colors, spacing, radius } from '../../constants/theme';
@@ -31,6 +32,8 @@ export default function ReportIssue() {
   const [imagePreview, setImagePreview] = useState(null);
   const [location, setLocation] = useState('Getting location...');
   const [coords, setCoords] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -53,21 +56,34 @@ export default function ReportIssue() {
     })();
   }, []);
 
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera access is required to attach a photo.');
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 0.7,
-    });
-
-    if (!result.canceled) {
-      setImagePreview(result.assets[0].uri);
-    }
+  const pickImage = () => {
+    Alert.alert('Add Photo', 'Choose how to add a photo', [
+      {
+        text: 'Take Photo',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permission needed', 'Camera access is required.');
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
+          if (!result.canceled) setImagePreview(result.assets[0].uri);
+        },
+      },
+      {
+        text: 'Choose from Gallery',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permission needed', 'Gallery access is required.');
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
+          if (!result.canceled) setImagePreview(result.assets[0].uri);
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handleSubmit = async () => {
@@ -75,46 +91,62 @@ export default function ReportIssue() {
       Alert.alert('Missing fields', 'Please select an issue type and add a description.');
       return;
     }
-
     if (!coords) {
       Alert.alert('Location required', 'Waiting for GPS location. Please try again in a moment.');
       return;
     }
 
-    const user = auth.currentUser;
-    const newReport = {
-      id: Date.now(),
-      title: issueType,
-      description: description.trim(),
-      location,
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      status: 'pending',
-      date: new Date().toLocaleDateString(),
-      time: new Date().toLocaleTimeString(),
-      image: imagePreview,
-      userName: user?.displayName ?? user?.email?.split('@')[0] ?? 'Anonymous',
-      userEmail: user?.email ?? '',
-    };
+    setIsSubmitting(true);
+    try {
+      const user = auth.currentUser;
+      const reportId = Date.now();
 
-    // Save to Firestore (source of truth) and AsyncStorage (local cache)
-    await Promise.all([
-      submitReport(newReport, user?.uid ?? 'anonymous'),
-      (async () => {
-        const pendingReports = await getJSON('pendingReports');
-        pendingReports.push(newReport);
-        await setJSON('pendingReports', pendingReports);
-      })(),
-      (async () => {
-        const userReports = await getJSON('userReports');
-        userReports.push({ ...newReport, status: 'pending' });
-        await setJSON('userReports', userReports);
-      })(),
-    ]);
+      // Upload image to Firebase Storage first so the URL is stored in Firestore
+      let imageUrl = null;
+      if (imagePreview) {
+        setSubmitStatus('Uploading photo...');
+        const uploadResult = await uploadReportImage(imagePreview, reportId);
+        imageUrl = uploadResult.url; // null on failure — submission still continues
+      }
 
-    Alert.alert('Success', 'Report submitted! Waiting for admin approval.', [
-      { text: 'OK', onPress: () => router.replace('/user') },
-    ]);
+      setSubmitStatus('Saving report...');
+
+      const newReport = {
+        id: reportId,
+        title: issueType,
+        description: description.trim(),
+        location,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        status: 'pending',
+        date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString(),
+        image: imageUrl,
+        userName: user?.displayName ?? user?.email?.split('@')[0] ?? 'Anonymous',
+        userEmail: user?.email ?? '',
+      };
+
+      await Promise.all([
+        submitReport(newReport, user?.uid ?? 'anonymous'),
+        (async () => {
+          const pendingReports = await getJSON('pendingReports');
+          pendingReports.push(newReport);
+          await setJSON('pendingReports', pendingReports);
+        })(),
+        (async () => {
+          const userReports = await getJSON('userReports');
+          userReports.push({ ...newReport });
+          await setJSON('userReports', userReports);
+        })(),
+      ]);
+
+      Alert.alert('Success', 'Report submitted! Waiting for admin approval.', [
+        { text: 'OK', onPress: () => router.replace('/user') },
+      ]);
+    } finally {
+      setIsSubmitting(false);
+      setSubmitStatus('');
+    }
   };
 
   return (
@@ -197,7 +229,14 @@ export default function ReportIssue() {
           placeholder="Describe the issue in detail..."
         />
 
-        <PrimaryButton title="Submit Report" onPress={handleSubmit} style={styles.submitBtn} />
+        {isSubmitting ? (
+          <View style={styles.loadingBtn}>
+            <ActivityIndicator color="#FFFFFF" size="small" />
+            <Text style={styles.loadingBtnText}>{submitStatus || 'Submitting...'}</Text>
+          </View>
+        ) : (
+          <PrimaryButton title="Submit Report" onPress={handleSubmit} style={styles.submitBtn} />
+        )}
       </ScrollView>
     </Screen>
   );
@@ -321,5 +360,20 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: spacing.lg,
+  },
+  loadingBtn: {
+    marginTop: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    borderRadius: radius.lg,
+  },
+  loadingBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });

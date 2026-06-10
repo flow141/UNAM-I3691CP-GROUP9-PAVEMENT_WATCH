@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -106,5 +106,39 @@ export const updateReportStatus = async (reportId, updates) => {
   } catch (error) {
     console.error('updateReportStatus error:', error.message);
     return { success: false, error: error.message };
+  }
+};
+
+export const uploadReportImage = async (localUri, reportId) => {
+  try {
+    // fetch() returns ArrayBuffer on React Native local URIs, which Firebase rejects.
+    // XMLHttpRequest with responseType 'blob' produces a proper Blob.
+    const blob = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.onload = () => resolve(xhr.response);
+      xhr.onerror = () => reject(new Error('Failed to read image file'));
+      xhr.responseType = 'blob';
+      xhr.open('GET', localUri, true);
+      xhr.send(null);
+    });
+    const storageRef = ref(storage, `reports/${reportId}.jpg`);
+    const snapshot = await uploadBytes(storageRef, blob);
+    const url = await getDownloadURL(snapshot.ref);
+    blob.close?.(); // release memory on Android
+    return { success: true, url };
+  } catch (error) {
+    console.error('uploadReportImage error:', error.message);
+    return { success: false, url: null };
+  }
+};
+
+export const getUserReports = async (userId) => {
+  try {
+    const q = query(collection(db, 'reports'), where('submittedBy', '==', userId));
+    const snapshot = await getDocs(q);
+    return { success: true, data: snapshot.docs.map((d) => d.data()) };
+  } catch (error) {
+    console.error('getUserReports error:', error.message);
+    return { success: false, data: [] };
   }
 };
