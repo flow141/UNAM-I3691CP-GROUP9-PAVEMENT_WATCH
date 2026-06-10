@@ -14,6 +14,7 @@ import { Screen } from '../../components/shared/Screen';
 import { BottomNav } from '../../components/shared/BottomNav';
 import { Header, Card } from '../../components/shared/ui';
 import { getJSON, setJSON } from '../../services/storage';
+import { getReportsByStatus, updateReportStatus } from '../../services/firebase';
 import { colors, spacing, radius } from '../../constants/theme';
 
 export default function AdminDashboard() {
@@ -21,11 +22,26 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0 });
 
   const loadData = useCallback(async () => {
-    const pending = await getJSON('pendingReports');
-    const approved = await getJSON('approvedReports');
+    const [firestoreResult, localPending, approved, completed, rejected] = await Promise.all([
+      getReportsByStatus('pending'),
+      getJSON('pendingReports'),
+      getJSON('approvedReports'),
+      getJSON('completedTasks'),
+      getJSON('rejectedReports'),
+    ]);
+
+    // Merge Firestore + AsyncStorage, dedup by id (Firestore wins)
+    const merged = new Map();
+    firestoreResult.data.forEach((r) => merged.set(String(r.id), r));
+    localPending.forEach((r) => { if (!merged.has(String(r.id))) merged.set(String(r.id), r); });
+    const pending = [...merged.values()];
+
+    // Keep local cache in sync
+    await setJSON('pendingReports', pending);
+
     setPendingReports(pending);
     setStats({
-      total: pending.length + approved.length,
+      total: pending.length + approved.length + completed.length + rejected.length,
       pending: pending.length,
       approved: approved.length,
     });
@@ -38,38 +54,58 @@ export default function AdminDashboard() {
   );
 
   const handleApprove = async (report) => {
-    let pending = await getJSON('pendingReports');
-    pending = pending.filter((r) => r.id !== report.id);
-    await setJSON('pendingReports', pending);
+    const approvedDate = new Date().toLocaleDateString();
 
-    const approved = await getJSON('approvedReports');
-    approved.push({ ...report, status: 'approved', approvedDate: new Date().toLocaleDateString() });
-    await setJSON('approvedReports', approved);
+    await Promise.all([
+      // Update Firestore
+      updateReportStatus(report.id, { status: 'approved', approvedDate }),
+      // Update AsyncStorage
+      (async () => {
+        let pending = await getJSON('pendingReports');
+        pending = pending.filter((r) => r.id !== report.id);
+        await setJSON('pendingReports', pending);
 
-    const workerTasks = await getJSON('workerTasks');
-    workerTasks.push({ ...report, status: 'pending', assignedDate: new Date().toLocaleDateString() });
-    await setJSON('workerTasks', workerTasks);
+        const approved = await getJSON('approvedReports');
+        approved.push({ ...report, status: 'approved', approvedDate });
+        await setJSON('approvedReports', approved);
 
-    const userReports = await getJSON('userReports');
-    const updatedUserReports = userReports.map((r) =>
-      r.id === report.id ? { ...r, status: 'approved' } : r
-    );
-    await setJSON('userReports', updatedUserReports);
+        const workerTasks = await getJSON('workerTasks');
+        workerTasks.push({ ...report, status: 'pending', assignedDate: approvedDate });
+        await setJSON('workerTasks', workerTasks);
+
+        const userReports = await getJSON('userReports');
+        await setJSON('userReports', userReports.map((r) =>
+          r.id === report.id ? { ...r, status: 'approved' } : r
+        ));
+      })(),
+    ]);
 
     await loadData();
     Alert.alert('Approved', 'Report approved and sent to workers.');
   };
 
   const handleReject = async (report) => {
-    let pending = await getJSON('pendingReports');
-    pending = pending.filter((r) => r.id !== report.id);
-    await setJSON('pendingReports', pending);
+    const rejectedDate = new Date().toLocaleDateString();
 
-    const userReports = await getJSON('userReports');
-    const updatedUserReports = userReports.map((r) =>
-      r.id === report.id ? { ...r, status: 'rejected' } : r
-    );
-    await setJSON('userReports', updatedUserReports);
+    await Promise.all([
+      // Update Firestore
+      updateReportStatus(report.id, { status: 'rejected', rejectedDate }),
+      // Update AsyncStorage
+      (async () => {
+        let pending = await getJSON('pendingReports');
+        pending = pending.filter((r) => r.id !== report.id);
+        await setJSON('pendingReports', pending);
+
+        const rejected = await getJSON('rejectedReports');
+        rejected.push({ ...report, status: 'rejected', rejectedDate });
+        await setJSON('rejectedReports', rejected);
+
+        const userReports = await getJSON('userReports');
+        await setJSON('userReports', userReports.map((r) =>
+          r.id === report.id ? { ...r, status: 'rejected' } : r
+        ));
+      })(),
+    ]);
 
     await loadData();
     Alert.alert('Rejected', 'Report has been rejected.');

@@ -17,6 +17,7 @@ import { Screen } from '../../components/shared/Screen';
 import { GeoapifyMapView } from '../../components/shared/GeoapifyMapView';
 import { PrimaryButton } from '../../components/shared/ui';
 import { getJSON, setJSON } from '../../services/storage';
+import { auth, submitReport } from '../../services/firebase';
 import { reverseGeocode } from '../../services/geoapify';
 import { DEFAULT_MAP_REGION } from '../../constants/maps';
 import { colors, spacing, radius } from '../../constants/theme';
@@ -80,6 +81,7 @@ export default function ReportIssue() {
       return;
     }
 
+    const user = auth.currentUser;
     const newReport = {
       id: Date.now(),
       title: issueType,
@@ -91,17 +93,24 @@ export default function ReportIssue() {
       date: new Date().toLocaleDateString(),
       time: new Date().toLocaleTimeString(),
       image: imagePreview,
-      userName: 'John Doe',
-      userEmail: 'user@pavement.com',
+      userName: user?.displayName ?? user?.email?.split('@')[0] ?? 'Anonymous',
+      userEmail: user?.email ?? '',
     };
 
-    const pendingReports = await getJSON('pendingReports');
-    pendingReports.push(newReport);
-    await setJSON('pendingReports', pendingReports);
-
-    const userReports = await getJSON('userReports');
-    userReports.push({ ...newReport, status: 'pending' });
-    await setJSON('userReports', userReports);
+    // Save to Firestore (source of truth) and AsyncStorage (local cache)
+    await Promise.all([
+      submitReport(newReport, user?.uid ?? 'anonymous'),
+      (async () => {
+        const pendingReports = await getJSON('pendingReports');
+        pendingReports.push(newReport);
+        await setJSON('pendingReports', pendingReports);
+      })(),
+      (async () => {
+        const userReports = await getJSON('userReports');
+        userReports.push({ ...newReport, status: 'pending' });
+        await setJSON('userReports', userReports);
+      })(),
+    ]);
 
     Alert.alert('Success', 'Report submitted! Waiting for admin approval.', [
       { text: 'OK', onPress: () => router.replace('/user') },

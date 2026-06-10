@@ -1,16 +1,16 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyBPqEpRX3c5G6dPGMJV06A7OMz1R1R9LPk',
-  authDomain: 'pavement-watch-8c9de.firebaseapp.com',
-  projectId: 'pavement-watch-8c9de',
-  storageBucket: 'pavement-watch-8c9de.firebasestorage.app',
-  messagingSenderId: '1063834639851',
-  appId: '1:1063834639851:web:355b24f8bebda718798dae',
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
@@ -48,5 +48,63 @@ export const signIn = async (email, password) => {
   } catch (error) {
     console.error('SignIn error:', error.message);
     return { success: false, error: 'Invalid email or password' };
+  }
+};
+
+// Use the numeric report id (Date.now()) as the Firestore document ID so all
+// screens can reference the same document without a separate id-tracking field.
+export const submitReport = async (report, userId) => {
+  try {
+    await setDoc(doc(db, 'reports', String(report.id)), {
+      ...report,
+      submittedBy: userId,
+      submittedAt: new Date().toISOString(),
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('submitReport error:', error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getReportsByStatus = async (status) => {
+  try {
+    const q = query(collection(db, 'reports'), where('status', '==', status));
+    const snapshot = await getDocs(q);
+    return { success: true, data: snapshot.docs.map((d) => d.data()) };
+  } catch (error) {
+    console.error('getReportsByStatus error:', error.message);
+    return { success: false, data: [] };
+  }
+};
+
+export const getReportsByStatuses = async (statuses) => {
+  try {
+    const q = query(collection(db, 'reports'), where('status', 'in', statuses));
+    const snapshot = await getDocs(q);
+    return { success: true, data: snapshot.docs.map((d) => d.data()) };
+  } catch (error) {
+    console.error('getReportsByStatuses error:', error.message);
+    return { success: false, data: [] };
+  }
+};
+
+export const getAllReports = async () => {
+  try {
+    const snapshot = await getDocs(collection(db, 'reports'));
+    return { success: true, data: snapshot.docs.map((d) => d.data()) };
+  } catch (error) {
+    console.error('getAllReports error:', error.message);
+    return { success: false, data: [] };
+  }
+};
+
+export const updateReportStatus = async (reportId, updates) => {
+  try {
+    await updateDoc(doc(db, 'reports', String(reportId)), updates);
+    return { success: true };
+  } catch (error) {
+    console.error('updateReportStatus error:', error.message);
+    return { success: false, error: error.message };
   }
 };

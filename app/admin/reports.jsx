@@ -1,35 +1,71 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, StyleSheet } from 'react-native';
-import { MapPin, Calendar, Search } from 'lucide-react-native';
+import { useFocusEffect } from 'expo-router';
+import { MapPin, Calendar, Search, User } from 'lucide-react-native';
 import { Screen } from '../../components/shared/Screen';
 import { BottomNav } from '../../components/shared/BottomNav';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Card } from '../../components/shared/ui';
+import { getJSON, setJSON } from '../../services/storage';
+import { getAllReports } from '../../services/firebase';
 import { colors, spacing, radius } from '../../constants/theme';
 
-const reports = [
-  { id: 1, title: 'Large Pothole', location: 'Main St & 5th Ave', status: 'in_progress', date: 'Apr 28, 2026', reportedBy: 'John Doe' },
-  { id: 2, title: 'Broken Sidewalk', location: 'Oak Street', status: 'pending', date: 'Apr 29, 2026', reportedBy: 'Jane Smith' },
-  { id: 3, title: 'Road Crack', location: 'Elm Avenue', status: 'completed', date: 'Apr 25, 2026', reportedBy: 'Mike Johnson' },
-];
-
-const filters = ['all', 'pending', 'in_progress', 'completed'];
+const filters = ['all', 'pending', 'approved', 'in_progress', 'completed', 'rejected'];
 
 export default function AdminReports() {
+  const [reports, setReports] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const filteredReports = reports.filter((report) => {
-    const matchesSearch = report.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
+  const loadReports = useCallback(async () => {
+    // Load from Firestore (source of truth) and AsyncStorage (local cache)
+    const [firestoreResult, localPending, localTasks, localCompleted, localRejected] = await Promise.all([
+      getAllReports(),
+      getJSON('pendingReports'),
+      getJSON('workerTasks'),
+      getJSON('completedTasks'),
+      getJSON('rejectedReports'),
+    ]);
+
+    // Firestore wins on dedup, then fill in with any local-only data
+    const map = new Map();
+    firestoreResult.data.forEach((r) => map.set(String(r.id), r));
+
+    // Local fallback: highest-status sources first
+    const addLocal = (list, statusOverride) => {
+      list.forEach((r) => {
+        if (!map.has(String(r.id))) {
+          map.set(String(r.id), statusOverride ? { ...r, status: statusOverride } : r);
+        }
+      });
+    };
+    addLocal(localCompleted, 'completed');
+    addLocal(localTasks);
+    addLocal(localRejected, 'rejected');
+    addLocal(localPending, 'pending');
+
+    const sorted = [...map.values()].sort((a, b) => b.id - a.id);
+    setReports(sorted);
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadReports(); }, [loadReports]));
+
+  const filtered = reports.filter((r) => {
+    const matchesSearch = (r.title ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const filterLabel = (status) => {
-    if (status === 'all') return 'All';
-    if (status === 'in_progress') return 'In Progress';
-    return status.charAt(0).toUpperCase() + status.slice(1);
+  const filterLabel = (s) => {
+    if (s === 'all') return 'All';
+    if (s === 'in_progress') return 'In Progress';
+    return s.charAt(0).toUpperCase() + s.slice(1);
   };
+
+  const counts = filters.reduce((acc, s) => {
+    acc[s] = s === 'all' ? reports.length : reports.filter((r) => r.status === s).length;
+    return acc;
+  }, {});
 
   return (
     <Screen edges={['top']}>
@@ -46,14 +82,15 @@ export default function AdminReports() {
           />
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-          {filters.map((status) => (
+          {filters.map((s) => (
             <Pressable
-              key={status}
-              style={[styles.filterBtn, statusFilter === status && styles.filterBtnActive]}
-              onPress={() => setStatusFilter(status)}
+              key={s}
+              style={[styles.filterBtn, statusFilter === s && styles.filterBtnActive]}
+              onPress={() => setStatusFilter(s)}
             >
-              <Text style={[styles.filterText, statusFilter === status && styles.filterTextActive]}>
-                {filterLabel(status)}
+              <Text style={[styles.filterText, statusFilter === s && styles.filterTextActive]}>
+                {filterLabel(s)}
+                {counts[s] > 0 ? ` (${counts[s]})` : ''}
               </Text>
             </Pressable>
           ))}
@@ -61,23 +98,36 @@ export default function AdminReports() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        {filteredReports.map((report) => (
-          <Card key={report.id} style={styles.reportCard}>
-            <View style={styles.reportHeader}>
-              <Text style={styles.reportTitle}>{report.title}</Text>
-              <StatusBadge status={report.status} size="sm" />
-            </View>
-            <View style={styles.row}>
-              <MapPin size={16} color={colors.textSecondary} />
-              <Text style={styles.meta}>{report.location}</Text>
-            </View>
-            <View style={styles.row}>
-              <Calendar size={16} color={colors.textMuted} />
-              <Text style={styles.metaMuted}>{report.date}</Text>
-            </View>
-            <Text style={styles.byline}>By: {report.reportedBy}</Text>
+        {filtered.length === 0 ? (
+          <Card style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No reports found</Text>
           </Card>
-        ))}
+        ) : (
+          filtered.map((report) => (
+            <Card key={report.id} style={styles.reportCard}>
+              <View style={styles.reportHeader}>
+                <Text style={styles.reportTitle} numberOfLines={1}>{report.title}</Text>
+                <StatusBadge status={report.status} size="sm" />
+              </View>
+              <View style={styles.row}>
+                <MapPin size={14} color={colors.textSecondary} />
+                <Text style={styles.meta} numberOfLines={1}>{report.location}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <View style={styles.row}>
+                  <Calendar size={14} color={colors.textMuted} />
+                  <Text style={styles.metaMuted}>{report.date}</Text>
+                </View>
+                {report.userName ? (
+                  <View style={styles.row}>
+                    <User size={14} color={colors.textMuted} />
+                    <Text style={styles.metaMuted}>{report.userName}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </Card>
+          ))
+        )}
       </ScrollView>
       <BottomNav role="admin" />
     </Screen>
@@ -125,7 +175,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   filterText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
     color: colors.textSecondary,
   },
@@ -137,8 +187,16 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingBottom: spacing.lg,
   },
+  emptyCard: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+  },
+  emptyText: {
+    color: colors.textMuted,
+    fontSize: 15,
+  },
   reportCard: {
-    marginBottom: spacing.sm,
+    marginBottom: 0,
   },
   reportHeader: {
     flexDirection: 'row',
@@ -153,23 +211,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
+  metaRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
+    gap: 4,
+    marginBottom: 2,
   },
   meta: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
+    flex: 1,
   },
   metaMuted: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  byline: {
     fontSize: 12,
     color: colors.textMuted,
-    marginTop: 4,
   },
 });

@@ -1,53 +1,83 @@
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Wrench, Mail, Phone, MapPin, LogOut, ChevronRight } from 'lucide-react-native';
+import { useFocusEffect } from 'expo-router';
+import { Wrench, Mail, LogOut, ChevronRight } from 'lucide-react-native';
 import { Screen } from '../../components/shared/Screen';
 import { BottomNav } from '../../components/shared/BottomNav';
 import { PageHeader, Card } from '../../components/shared/ui';
+import { auth } from '../../services/firebase';
+import { getJSON } from '../../services/storage';
 import { colors, spacing, radius } from '../../constants/theme';
 
 export default function WorkerProfile() {
   const router = useRouter();
+  const [workerInfo, setWorkerInfo] = useState({ email: '', displayName: '' });
+  const [stats, setStats] = useState({ active: 0, completed: 0, rate: 0 });
+
+  const loadData = useCallback(async () => {
+    const user = auth.currentUser;
+    if (user) {
+      setWorkerInfo({
+        email: user.email ?? '',
+        displayName: user.displayName ?? user.email?.split('@')[0] ?? 'Worker',
+      });
+    }
+
+    const [tasks, completed] = await Promise.all([
+      getJSON('workerTasks'),
+      getJSON('completedTasks'),
+    ]);
+
+    const total = tasks.length + completed.length;
+    const rate = total > 0 ? Math.round((completed.length / total) * 100) : 0;
+
+    setStats({ active: tasks.length, completed: completed.length, rate });
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   return (
     <Screen edges={['top']}>
       <PageHeader title="Profile" />
       <ScrollView contentContainerStyle={styles.scroll}>
+
         <Card>
           <View style={styles.profileRow}>
             <View style={styles.avatar}>
               <Wrench size={40} color="#FFFFFF" />
             </View>
-            <View>
-              <Text style={styles.name}>Mike Wilson</Text>
+            <View style={styles.profileInfo}>
+              <Text style={styles.name}>
+                {workerInfo.displayName || 'Field Worker'}
+              </Text>
               <Text style={styles.role}>Field Worker</Text>
-              <Text style={styles.id}>ID: #W12345</Text>
             </View>
           </View>
-
-          <InfoRow icon={Mail} text="worker@pavement.com" />
-          <InfoRow icon={Phone} text="+1 (555) 777-8888" />
-          <InfoRow icon={MapPin} text="San Francisco, CA" />
+          <View style={styles.infoRow}>
+            <Mail size={18} color={colors.textMuted} />
+            <Text style={styles.infoText}>{workerInfo.email || 'worker@pavement.com'}</Text>
+          </View>
         </Card>
 
         <View style={styles.statsRow}>
           <Card style={styles.statCard}>
-            <Text style={styles.statValue}>45</Text>
+            <Text style={[styles.statValue, { color: colors.warning }]}>{stats.active}</Text>
+            <Text style={styles.statLabel}>Active</Text>
+          </Card>
+          <Card style={styles.statCard}>
+            <Text style={[styles.statValue, { color: colors.success }]}>{stats.completed}</Text>
             <Text style={styles.statLabel}>Completed</Text>
           </Card>
           <Card style={styles.statCard}>
-            <Text style={[styles.statValue, { color: colors.warning }]}>3</Text>
-            <Text style={styles.statLabel}>In Progress</Text>
-          </Card>
-          <Card style={styles.statCard}>
-            <Text style={[styles.statValue, { color: colors.info }]}>98%</Text>
+            <Text style={[styles.statValue, { color: colors.info }]}>{stats.rate}%</Text>
             <Text style={styles.statLabel}>Success Rate</Text>
           </Card>
         </View>
 
         <Card style={styles.menuCard}>
-          <MenuItem title="Work Schedule" />
-          <MenuItem title="Task History" last />
+          <MenuItem title="My Tasks" onPress={() => router.push('/worker')} />
+          <MenuItem title="Task Map" onPress={() => router.push('/worker/map')} last />
         </Card>
 
         <Pressable style={styles.logoutBtn} onPress={() => router.replace('/')}>
@@ -60,20 +90,11 @@ export default function WorkerProfile() {
   );
 }
 
-function InfoRow({ icon: Icon, text }) {
+function MenuItem({ title, onPress, last }) {
   return (
-    <View style={styles.infoRow}>
-      <Icon size={20} color={colors.textMuted} />
-      <Text style={styles.infoText}>{text}</Text>
-    </View>
-  );
-}
-
-function MenuItem({ title, last }) {
-  return (
-    <Pressable style={[styles.menuItem, !last && styles.menuBorder]}>
+    <Pressable style={[styles.menuItem, !last && styles.menuBorder]} onPress={onPress}>
       <Text style={styles.menuText}>{title}</Text>
-      <ChevronRight size={20} color={colors.textMuted} />
+      <ChevronRight size={18} color={colors.textMuted} />
     </Pressable>
   );
 }
@@ -88,15 +109,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     backgroundColor: colors.warning,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  profileInfo: {
+    flex: 1,
   },
   name: {
     fontSize: 20,
@@ -106,21 +130,16 @@ const styles = StyleSheet.create({
   role: {
     fontSize: 14,
     color: colors.textSecondary,
-  },
-  id: {
-    fontSize: 12,
-    color: colors.textMuted,
     marginTop: 2,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.sm,
   },
   infoText: {
+    fontSize: 14,
     color: colors.textSecondary,
-    fontSize: 15,
   },
   statsRow: {
     flexDirection: 'row',
@@ -133,7 +152,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 22,
     fontWeight: '700',
-    color: colors.primary,
+    color: colors.text,
   },
   statLabel: {
     fontSize: 11,
@@ -156,8 +175,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   menuText: {
-    color: colors.textSecondary,
     fontSize: 15,
+    color: colors.textSecondary,
   },
   logoutBtn: {
     flexDirection: 'row',
