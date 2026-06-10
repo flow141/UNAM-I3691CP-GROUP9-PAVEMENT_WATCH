@@ -1,5 +1,5 @@
-import { initializeApp } from 'firebase/app';
-import { initializeAuth, getReactNativePersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { initializeApp, getApps } from 'firebase/app';
+import { initializeAuth, getAuth, getReactNativePersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
@@ -140,5 +140,29 @@ export const getUserReports = async (userId) => {
   } catch (error) {
     console.error('getUserReports error:', error.message);
     return { success: false, data: [] };
+  }
+};
+
+export const logout = () => signOut(auth);
+
+// Uses a secondary app instance so the admin session is never interrupted.
+export const createWorkerAccount = async (email, password, fullName) => {
+  try {
+    const secondaryApp =
+      getApps().find((a) => a.name === 'workerCreator') ??
+      initializeApp(firebaseConfig, 'workerCreator');
+    const secondaryAuth = getAuth(secondaryApp);
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      email,
+      fullName,
+      role: 'worker',
+      createdAt: new Date().toISOString(),
+    });
+    await signOut(secondaryAuth);
+    return { success: true };
+  } catch (error) {
+    console.error('createWorkerAccount error:', error.message);
+    return { success: false, error: error.message };
   }
 };

@@ -1,142 +1,196 @@
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
-import { User, Mail, Phone, MapPin, LogOut, ChevronRight } from 'lucide-react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { FileText, Clock, CheckCircle2, ChevronRight, LogOut } from 'lucide-react-native';
 import { Screen } from '../../components/shared/Screen';
 import { BottomNav } from '../../components/shared/BottomNav';
-import { PageHeader, Card } from '../../components/shared/ui';
+import { Card } from '../../components/shared/ui';
+import { auth, logout } from '../../services/firebase';
+import { getJSON } from '../../services/storage';
 import { colors, spacing, radius } from '../../constants/theme';
+
+const HERO_COLOR = colors.primary;
+
+function getInitials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(' ');
+  return parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : name[0].toUpperCase();
+}
 
 export default function UserProfile() {
   const router = useRouter();
+  const [info, setInfo] = useState({ email: '', name: '' });
+  const [stats, setStats] = useState({ total: 0, active: 0, resolved: 0 });
+
+  const loadData = useCallback(async () => {
+    const user = auth.currentUser;
+    if (user) {
+      setInfo({
+        email: user.email ?? '',
+        name: user.displayName ?? user.email?.split('@')[0] ?? 'User',
+      });
+    }
+    const reports = await getJSON('userReports');
+    setStats({
+      total: reports.length,
+      active: reports.filter((r) => r.status !== 'completed' && r.status !== 'rejected').length,
+      resolved: reports.filter((r) => r.status === 'completed').length,
+    });
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/');
+  };
 
   return (
     <Screen edges={['top']}>
-      <PageHeader title="Profile" />
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Card>
-          <View style={styles.profileRow}>
-            <View style={styles.avatar}>
-              <User size={40} color="#FFFFFF" />
-            </View>
-            <View>
-              <Text style={styles.name}>John Doe</Text>
-              <Text style={styles.role}>Community Reporter</Text>
-            </View>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* Hero */}
+        <View style={styles.hero}>
+          <View style={styles.avatarCircle}>
+            <Text style={[styles.initials, { color: HERO_COLOR }]}>{getInitials(info.name)}</Text>
           </View>
-
-          <InfoRow icon={Mail} text="user@pavement.com" />
-          <InfoRow icon={Phone} text="+1 (555) 123-4567" />
-          <InfoRow icon={MapPin} text="San Francisco, CA" />
-        </Card>
-
-        <View style={styles.statsRow}>
-          <Card style={styles.statCard}>
-            <Text style={styles.statValue}>12</Text>
-            <Text style={styles.statLabel}>Total Reports</Text>
-          </Card>
-          <Card style={styles.statCard}>
-            <Text style={[styles.statValue, { color: colors.warning }]}>5</Text>
-            <Text style={styles.statLabel}>In Progress</Text>
-          </Card>
-          <Card style={styles.statCard}>
-            <Text style={[styles.statValue, { color: colors.success }]}>7</Text>
-            <Text style={styles.statLabel}>Resolved</Text>
-          </Card>
+          <Text style={styles.heroName}>{info.name || 'User'}</Text>
+          <View style={styles.rolePill}>
+            <Text style={styles.roleText}>Community Reporter</Text>
+          </View>
+          {info.email ? <Text style={styles.heroEmail}>{info.email}</Text> : null}
         </View>
 
+        {/* Stats */}
+        <View style={styles.statsRow}>
+          <StatCard icon={FileText} label="Total" value={stats.total} color="#3B82F6" />
+          <StatCard icon={Clock} label="Active" value={stats.active} color={colors.warning} />
+          <StatCard icon={CheckCircle2} label="Resolved" value={stats.resolved} color={colors.success} />
+        </View>
+
+        {/* Menu */}
         <Card style={styles.menuCard}>
-          <MenuItem title="Account Settings" />
-          <MenuItem title="Notifications" />
-          <MenuItem title="Help & Support" last />
+          <MenuItem title="My Reports" onPress={() => router.push('/user/my-reports')} />
+          <MenuItem title="Notifications" onPress={() => router.push('/user/notifications')} last />
         </Card>
 
-        <Pressable style={styles.logoutBtn} onPress={() => router.replace('/')}>
-          <LogOut size={20} color={colors.error} />
+        {/* Logout */}
+        <Pressable style={styles.logoutBtn} onPress={handleLogout}>
+          <LogOut size={18} color={colors.error} />
           <Text style={styles.logoutText}>Logout</Text>
         </Pressable>
+
       </ScrollView>
       <BottomNav role="user" />
     </Screen>
   );
 }
 
-function InfoRow({ icon: Icon, text }) {
+function StatCard({ icon: Icon, label, value, color }) {
   return (
-    <View style={styles.infoRow}>
-      <Icon size={20} color={colors.textMuted} />
-      <Text style={styles.infoText}>{text}</Text>
-    </View>
+    <Card style={styles.statCard}>
+      <View style={[styles.statIcon, { backgroundColor: color }]}>
+        <Icon size={16} color="#fff" />
+      </View>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </Card>
   );
 }
 
-function MenuItem({ title, last }) {
+function MenuItem({ title, onPress, last }) {
   return (
-    <Pressable style={[styles.menuItem, !last && styles.menuBorder]}>
+    <Pressable style={[styles.menuItem, !last && styles.menuBorder]} onPress={onPress}>
       <Text style={styles.menuText}>{title}</Text>
-      <ChevronRight size={20} color={colors.textMuted} />
+      <ChevronRight size={18} color={colors.textMuted} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   scroll: {
-    padding: spacing.md,
-    gap: spacing.md,
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.xl,
   },
-  profileRow: {
-    flexDirection: 'row',
+  hero: {
+    backgroundColor: HERO_COLOR,
     alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl + spacing.md,
+    paddingHorizontal: spacing.md,
+    gap: 6,
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.primary,
+  avatarCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  name: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  role: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
     marginBottom: spacing.sm,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  infoText: {
-    color: colors.textSecondary,
-    fontSize: 15,
+  initials: {
+    fontSize: 32,
+    fontWeight: '700',
+  },
+  heroName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  rolePill: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    borderRadius: radius.xl,
+  },
+  roleText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  heroEmail: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 13,
+    marginTop: 2,
   },
   statsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
+    padding: spacing.md,
+    marginTop: -spacing.md,
   },
   statCard: {
     flex: 1,
     alignItems: 'center',
+    paddingVertical: spacing.md,
+    gap: 4,
+  },
+  statIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
-    color: colors.primary,
+    color: colors.text,
   },
   statLabel: {
     fontSize: 11,
     color: colors.textSecondary,
-    marginTop: 4,
     textAlign: 'center',
   },
   menuCard: {
+    marginHorizontal: spacing.md,
     padding: 0,
     overflow: 'hidden',
   },
@@ -151,21 +205,24 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   menuText: {
-    color: colors.textSecondary,
     fontSize: 15,
+    color: colors.text,
   },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.surface,
+    margin: spacing.md,
+    marginTop: spacing.sm,
+    paddingVertical: 14,
     borderRadius: radius.lg,
-    padding: spacing.md,
+    borderWidth: 1.5,
+    borderColor: colors.error,
   },
   logoutText: {
     color: colors.error,
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 15,
   },
 });

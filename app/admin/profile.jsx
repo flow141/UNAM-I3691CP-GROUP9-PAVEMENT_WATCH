@@ -1,45 +1,43 @@
 import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
-import {
-  ShieldCheck,
-  Mail,
-  LogOut,
-  ChevronRight,
-  FileText,
-  Clock,
-  CheckCircle2,
-  XCircle,
-} from 'lucide-react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { FileText, Clock, CheckCircle2, XCircle, ChevronRight, LogOut } from 'lucide-react-native';
 import { Screen } from '../../components/shared/Screen';
 import { BottomNav } from '../../components/shared/BottomNav';
-import { PageHeader, Card } from '../../components/shared/ui';
-import { auth } from '../../services/firebase';
+import { Card } from '../../components/shared/ui';
+import { auth, logout } from '../../services/firebase';
 import { getJSON } from '../../services/storage';
 import { colors, spacing, radius } from '../../constants/theme';
 
+const HERO_COLOR = '#1D4ED8';
+
+function getInitials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(' ');
+  return parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : name[0].toUpperCase();
+}
+
 export default function AdminProfile() {
   const router = useRouter();
-  const [adminInfo, setAdminInfo] = useState({ email: '', displayName: '' });
+  const [info, setInfo] = useState({ email: '', name: '' });
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, completed: 0, rejected: 0 });
 
   const loadData = useCallback(async () => {
     const user = auth.currentUser;
     if (user) {
-      setAdminInfo({
+      setInfo({
         email: user.email ?? '',
-        displayName: user.displayName ?? user.email?.split('@')[0] ?? 'Admin',
+        name: user.displayName ?? user.email?.split('@')[0] ?? 'Admin',
       });
     }
-
     const [pending, approved, completed, rejected] = await Promise.all([
       getJSON('pendingReports'),
       getJSON('approvedReports'),
       getJSON('completedTasks'),
       getJSON('rejectedReports'),
     ]);
-
     setStats({
       total: pending.length + approved.length + completed.length + rejected.length,
       pending: pending.length,
@@ -51,47 +49,42 @@ export default function AdminProfile() {
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     router.replace('/');
   };
 
   const statCards = [
-    { label: 'Total', value: stats.total, icon: FileText, color: '#3B82F6' },
-    { label: 'Pending', value: stats.pending, icon: Clock, color: colors.warning },
-    { label: 'Approved', value: stats.approved, icon: CheckCircle2, color: colors.success },
-    { label: 'Rejected', value: stats.rejected, icon: XCircle, color: colors.error },
+    { icon: FileText,    label: 'Total',     value: stats.total,     color: '#3B82F6' },
+    { icon: Clock,       label: 'Pending',   value: stats.pending,   color: colors.warning },
+    { icon: CheckCircle2,label: 'Approved',  value: stats.approved,  color: colors.success },
+    { icon: XCircle,     label: 'Rejected',  value: stats.rejected,  color: colors.error },
   ];
 
   return (
     <Screen edges={['top']}>
-      <PageHeader title="Admin Profile" />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        <Card>
-          <View style={styles.profileRow}>
-            <View style={styles.avatar}>
-              <ShieldCheck size={40} color="#FFFFFF" />
-            </View>
-            <View style={styles.profileInfo}>
-              <Text style={styles.name}>
-                {adminInfo.displayName || 'Administrator'}
-              </Text>
-              <Text style={styles.role}>Municipal Admin</Text>
-            </View>
+        {/* Hero */}
+        <View style={styles.hero}>
+          <View style={styles.avatarCircle}>
+            <Text style={[styles.initials, { color: HERO_COLOR }]}>{getInitials(info.name)}</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Mail size={18} color={colors.textMuted} />
-            <Text style={styles.infoText}>{adminInfo.email || 'admin@pavement.com'}</Text>
+          <Text style={styles.heroName}>{info.name || 'Admin'}</Text>
+          <View style={styles.rolePill}>
+            <Text style={styles.roleText}>Municipal Administrator</Text>
           </View>
-        </Card>
+          {info.email ? <Text style={styles.heroEmail}>{info.email}</Text> : null}
+        </View>
 
+        {/* Stats — 2×2 grid */}
         <View style={styles.statsGrid}>
           {statCards.map((s) => {
             const Icon = s.icon;
             return (
               <Card key={s.label} style={styles.statCard}>
                 <View style={[styles.statIcon, { backgroundColor: s.color }]}>
-                  <Icon size={16} color="#FFFFFF" />
+                  <Icon size={16} color="#fff" />
                 </View>
                 <Text style={styles.statValue}>{s.value}</Text>
                 <Text style={styles.statLabel}>{s.label}</Text>
@@ -100,15 +93,18 @@ export default function AdminProfile() {
           })}
         </View>
 
+        {/* Menu */}
         <Card style={styles.menuCard}>
-          <MenuItem title="Manage Reports" onPress={() => router.push('/admin/reports')} />
-          <MenuItem title="Pending Reviews" onPress={() => router.push('/admin')} last />
+          <MenuItem title="Pending Reports" onPress={() => router.push('/admin')} />
+          <MenuItem title="All Reports" onPress={() => router.push('/admin/reports')} last />
         </Card>
 
+        {/* Logout */}
         <Pressable style={styles.logoutBtn} onPress={handleLogout}>
-          <LogOut size={20} color={colors.error} />
+          <LogOut size={18} color={colors.error} />
           <Text style={styles.logoutText}>Logout</Text>
         </Pressable>
+
       </ScrollView>
       <BottomNav role="admin" />
     </Screen>
@@ -126,56 +122,67 @@ function MenuItem({ title, onPress, last }) {
 
 const styles = StyleSheet.create({
   scroll: {
-    padding: spacing.md,
-    gap: spacing.md,
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.xl,
   },
-  profileRow: {
-    flexDirection: 'row',
+  hero: {
+    backgroundColor: HERO_COLOR,
     alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.md,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl + spacing.md,
+    paddingHorizontal: spacing.md,
+    gap: 6,
   },
-  avatar: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: colors.primary,
+  avatarCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: spacing.sm,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  profileInfo: {
-    flex: 1,
-  },
-  name: {
-    fontSize: 20,
+  initials: {
+    fontSize: 32,
     fontWeight: '700',
-    color: colors.text,
   },
-  role: {
-    fontSize: 14,
-    color: colors.textSecondary,
+  heroName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  rolePill: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    borderRadius: radius.xl,
+  },
+  roleText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  heroEmail: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 13,
     marginTop: 2,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  infoText: {
-    fontSize: 14,
-    color: colors.textSecondary,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
+    padding: spacing.md,
+    marginTop: -spacing.md,
   },
   statCard: {
     flex: 1,
-    minWidth: '40%',
+    minWidth: '45%',
     alignItems: 'center',
     paddingVertical: spacing.md,
+    gap: 4,
   },
   statIcon: {
     width: 32,
@@ -183,19 +190,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: 4,
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     color: colors.text,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
-    marginTop: 2,
+    textAlign: 'center',
   },
   menuCard: {
+    marginHorizontal: spacing.md,
     padding: 0,
     overflow: 'hidden',
   },
@@ -211,20 +219,23 @@ const styles = StyleSheet.create({
   },
   menuText: {
     fontSize: 15,
-    color: colors.textSecondary,
+    color: colors.text,
   },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.surface,
+    margin: spacing.md,
+    marginTop: spacing.sm,
+    paddingVertical: 14,
     borderRadius: radius.lg,
-    padding: spacing.md,
+    borderWidth: 1.5,
+    borderColor: colors.error,
   },
   logoutText: {
     color: colors.error,
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 15,
   },
 });
