@@ -12,7 +12,7 @@
 | Matengu TT       | 224096281      | GitHub Manager       |
 | Ndakolute PN     | 225031809      | Firebase lead       |
 | Amushila AH      | 225085674      | Documentation lead       |
-| Neema W          | 222098694      | Firebase lead       |
+| Neema W          | 222098694      | FireBase lead       |
 | Haufiku MV       | 225059738      | Firebase lead      |
 | Shikongo NI      | 225056186      | UI/UX lead          |
 | Nkosi JM         | 225056437      | Lead developer       |
