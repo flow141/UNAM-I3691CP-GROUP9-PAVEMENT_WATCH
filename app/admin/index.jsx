@@ -7,25 +7,50 @@ import {
   Pressable,
   StyleSheet,
   Alert,
+  Modal,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { FileText, Clock, CheckCircle2, ThumbsUp, ThumbsDown } from 'lucide-react-native';
+import { FileText, Clock, CheckCircle2, ThumbsUp, ThumbsDown, UserPlus, X } from 'lucide-react-native';
 import { Screen } from '../../components/shared/Screen';
 import { BottomNav } from '../../components/shared/BottomNav';
-import { Header, Card } from '../../components/shared/ui';
+import { Header, Card, ErrorBanner } from '../../components/shared/ui';
 import { getJSON, setJSON } from '../../services/storage';
+import { getReportsByStatus, updateReportStatus, createWorkerAccount } from '../../services/firebase';
 import { colors, spacing, radius } from '../../constants/theme';
 
 export default function AdminDashboard() {
   const [pendingReports, setPendingReports] = useState([]);
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0 });
+  const [showWorkerModal, setShowWorkerModal] = useState(false);
+  const [workerForm, setWorkerForm] = useState({ fullName: '', email: '', password: '' });
+  const [workerError, setWorkerError] = useState('');
+  const [workerLoading, setWorkerLoading] = useState(false);
 
   const loadData = useCallback(async () => {
-    const pending = await getJSON('pendingReports');
-    const approved = await getJSON('approvedReports');
+    const [firestoreResult, localPending, approved, completed, rejected] = await Promise.all([
+      getReportsByStatus('pending'),
+      getJSON('pendingReports'),
+      getJSON('approvedReports'),
+      getJSON('completedTasks'),
+      getJSON('rejectedReports'),
+    ]);
+
+    // Merge Firestore + AsyncStorage, dedup by id (Firestore wins)
+    const merged = new Map();
+    firestoreResult.data.forEach((r) => merged.set(String(r.id), r));
+    localPending.forEach((r) => { if (!merged.has(String(r.id))) merged.set(String(r.id), r); });
+    const pending = [...merged.values()];
+
+    // Keep local cache in sync
+    await setJSON('pendingReports', pending);
+
     setPendingReports(pending);
     setStats({
-      total: pending.length + approved.length,
+      total: pending.length + approved.length + completed.length + rejected.length,
       pending: pending.length,
       approved: approved.length,
     });
@@ -38,41 +63,84 @@ export default function AdminDashboard() {
   );
 
   const handleApprove = async (report) => {
-    let pending = await getJSON('pendingReports');
-    pending = pending.filter((r) => r.id !== report.id);
-    await setJSON('pendingReports', pending);
+    const approvedDate = new Date().toLocaleDateString();
 
-    const approved = await getJSON('approvedReports');
-    approved.push({ ...report, status: 'approved', approvedDate: new Date().toLocaleDateString() });
-    await setJSON('approvedReports', approved);
+    await Promise.all([
+      // Update Firestore
+      updateReportStatus(report.id, { status: 'approved', approvedDate }),
+      // Update AsyncStorage
+      (async () => {
+        let pending = await getJSON('pendingReports');
+        pending = pending.filter((r) => r.id !== report.id);
+        await setJSON('pendingReports', pending);
 
-    const workerTasks = await getJSON('workerTasks');
-    workerTasks.push({ ...report, status: 'pending', assignedDate: new Date().toLocaleDateString() });
-    await setJSON('workerTasks', workerTasks);
+        const approved = await getJSON('approvedReports');
+        approved.push({ ...report, status: 'approved', approvedDate });
+        await setJSON('approvedReports', approved);
 
-    const userReports = await getJSON('userReports');
-    const updatedUserReports = userReports.map((r) =>
-      r.id === report.id ? { ...r, status: 'approved' } : r
-    );
-    await setJSON('userReports', updatedUserReports);
+        const workerTasks = await getJSON('workerTasks');
+        workerTasks.push({ ...report, status: 'pending', assignedDate: approvedDate });
+        await setJSON('workerTasks', workerTasks);
+
+        const userReports = await getJSON('userReports');
+        await setJSON('userReports', userReports.map((r) =>
+          r.id === report.id ? { ...r, status: 'approved' } : r
+        ));
+      })(),
+    ]);
 
     await loadData();
     Alert.alert('Approved', 'Report approved and sent to workers.');
   };
 
   const handleReject = async (report) => {
-    let pending = await getJSON('pendingReports');
-    pending = pending.filter((r) => r.id !== report.id);
-    await setJSON('pendingReports', pending);
+    const rejectedDate = new Date().toLocaleDateString();
 
-    const userReports = await getJSON('userReports');
-    const updatedUserReports = userReports.map((r) =>
-      r.id === report.id ? { ...r, status: 'rejected' } : r
-    );
-    await setJSON('userReports', updatedUserReports);
+    await Promise.all([
+      // Update Firestore
+      updateReportStatus(report.id, { status: 'rejected', rejectedDate }),
+      // Update AsyncStorage
+      (async () => {
+        let pending = await getJSON('pendingReports');
+        pending = pending.filter((r) => r.id !== report.id);
+        await setJSON('pendingReports', pending);
+
+        const rejected = await getJSON('rejectedReports');
+        rejected.push({ ...report, status: 'rejected', rejectedDate });
+        await setJSON('rejectedReports', rejected);
+
+        const userReports = await getJSON('userReports');
+        await setJSON('userReports', userReports.map((r) =>
+          r.id === report.id ? { ...r, status: 'rejected' } : r
+        ));
+      })(),
+    ]);
 
     await loadData();
     Alert.alert('Rejected', 'Report has been rejected.');
+  };
+
+  const handleCreateWorker = async () => {
+    const { fullName, email, password } = workerForm;
+    if (!fullName.trim() || !email.trim() || !password) {
+      setWorkerError('All fields are required.');
+      return;
+    }
+    if (password.length < 6) {
+      setWorkerError('Password must be at least 6 characters.');
+      return;
+    }
+    setWorkerLoading(true);
+    setWorkerError('');
+    const result = await createWorkerAccount(email.trim(), password, fullName.trim());
+    setWorkerLoading(false);
+    if (result.success) {
+      setShowWorkerModal(false);
+      setWorkerForm({ fullName: '', email: '', password: '' });
+      Alert.alert('Worker Created', `Account for ${fullName.trim()} has been created.`);
+    } else {
+      setWorkerError(result.error ?? 'Failed to create account. Try again.');
+    }
   };
 
   const statCards = [
@@ -85,6 +153,12 @@ export default function AdminDashboard() {
     <Screen edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Header title="Admin Dashboard" subtitle="Manage and verify reports" />
+
+        {/* Create Worker Account button */}
+        <Pressable style={styles.workerBtn} onPress={() => setShowWorkerModal(true)}>
+          <UserPlus size={18} color="#FFFFFF" />
+          <Text style={styles.workerBtnText}>Create Worker Account</Text>
+        </Pressable>
 
         <View style={styles.statsRow}>
           {statCards.map((stat) => {
@@ -140,6 +214,63 @@ export default function AdminDashboard() {
           ))
         )}
       </ScrollView>
+
+      {/* Create Worker Account Modal */}
+      <Modal visible={showWorkerModal} transparent animationType="slide" onRequestClose={() => setShowWorkerModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create Worker Account</Text>
+              <Pressable onPress={() => { setShowWorkerModal(false); setWorkerError(''); }} style={styles.modalClose}>
+                <X size={22} color={colors.textMuted} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.fieldLabel}>Full Name</Text>
+            <TextInput
+              style={styles.fieldInput}
+              placeholder="Worker's full name"
+              placeholderTextColor={colors.textMuted}
+              value={workerForm.fullName}
+              onChangeText={(v) => { setWorkerForm((p) => ({ ...p, fullName: v })); setWorkerError(''); }}
+            />
+
+            <Text style={styles.fieldLabel}>Email</Text>
+            <TextInput
+              style={styles.fieldInput}
+              placeholder="worker@example.com"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={workerForm.email}
+              onChangeText={(v) => { setWorkerForm((p) => ({ ...p, email: v })); setWorkerError(''); }}
+            />
+
+            <Text style={styles.fieldLabel}>Password</Text>
+            <TextInput
+              style={styles.fieldInput}
+              placeholder="Min 6 characters"
+              placeholderTextColor={colors.textMuted}
+              secureTextEntry
+              value={workerForm.password}
+              onChangeText={(v) => { setWorkerForm((p) => ({ ...p, password: v })); setWorkerError(''); }}
+            />
+
+            <ErrorBanner message={workerError} />
+
+            <Pressable
+              style={[styles.createBtn, workerLoading && { opacity: 0.6 }]}
+              onPress={handleCreateWorker}
+              disabled={workerLoading}
+            >
+              {workerLoading
+                ? <ActivityIndicator color="#FFFFFF" size="small" />
+                : <Text style={styles.createBtnText}>Create Account</Text>}
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <BottomNav role="admin" />
     </Screen>
   );
@@ -275,5 +406,76 @@ const styles = StyleSheet.create({
   actionText: {
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  workerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: '#1D4ED8',
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    paddingVertical: 12,
+    borderRadius: radius.lg,
+  },
+  workerBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.lg,
+    paddingBottom: 36,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.lg,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  modalClose: {
+    padding: 4,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginBottom: 6,
+  },
+  fieldInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: colors.text,
+    backgroundColor: colors.background,
+    marginBottom: spacing.md,
+  },
+  createBtn: {
+    backgroundColor: '#1D4ED8',
+    paddingVertical: 14,
+    borderRadius: radius.lg,
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  createBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });

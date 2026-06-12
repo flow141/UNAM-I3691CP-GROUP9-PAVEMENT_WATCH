@@ -1,40 +1,93 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, MapPin, Calendar, AlertCircle, CheckCircle2 } from 'lucide-react-native';
+import { ArrowLeft, MapPin, Calendar, AlertCircle, CheckCircle2, User } from 'lucide-react-native';
 import { Screen } from '../../../components/shared/Screen';
 import { StatusBadge } from '../../../components/shared/StatusBadge';
 import { Card, PrimaryButton } from '../../../components/shared/ui';
+import { getJSON, setJSON } from '../../../services/storage';
+import { updateReportStatus } from '../../../services/firebase';
 import { colors, spacing, radius } from '../../../constants/theme';
 
 export default function TaskDetails() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const [task, setTask] = useState(null);
   const [taskStatus, setTaskStatus] = useState('pending');
 
-  const task = {
-    id,
-    title: 'Large Pothole',
-    location: 'Main St & 5th Ave',
-    description: 'Deep pothole approximately 2 feet wide and 6 inches deep. Requires immediate attention.',
-    issueType: 'Pothole',
-    priority: 'high',
-    assignedDate: 'Apr 29, 2026',
-    reportedBy: 'John Doe',
+  useEffect(() => {
+    (async () => {
+      const tasks = await getJSON('workerTasks');
+      const found = tasks.find((t) => String(t.id) === String(id));
+      if (found) {
+        setTask(found);
+        setTaskStatus(found.status || 'pending');
+      }
+    })();
+  }, [id]);
+
+  const handleStartWork = async () => {
+    await Promise.all([
+      updateReportStatus(id, { status: 'in_progress' }),
+      (async () => {
+        const tasks = await getJSON('workerTasks');
+        await setJSON('workerTasks', tasks.map((t) =>
+          String(t.id) === String(id) ? { ...t, status: 'in_progress' } : t
+        ));
+      })(),
+    ]);
+    setTaskStatus('in_progress');
   };
+
+  const handleComplete = async () => {
+    const completedDate = new Date().toLocaleDateString();
+
+    let workerTasks = await getJSON('workerTasks');
+    const taskToComplete = workerTasks.find((t) => String(t.id) === String(id));
+    workerTasks = workerTasks.filter((t) => String(t.id) !== String(id));
+
+    await Promise.all([
+      updateReportStatus(id, { status: 'completed', completedDate }),
+      setJSON('workerTasks', workerTasks),
+      (async () => {
+        const completedTasks = await getJSON('completedTasks');
+        completedTasks.push({ ...taskToComplete, status: 'completed', completedDate });
+        await setJSON('completedTasks', completedTasks);
+      })(),
+      (async () => {
+        const userReports = await getJSON('userReports');
+        await setJSON('userReports', userReports.map((r) =>
+          String(r.id) === String(id) ? { ...r, status: 'completed' } : r
+        ));
+      })(),
+    ]);
+
+    setTaskStatus('completed');
+    setTimeout(() => router.replace('/worker'), 1500);
+  };
+
+  if (!task) {
+    return (
+      <Screen edges={['top']}>
+        <View style={styles.topBar}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <ArrowLeft size={24} color={colors.text} />
+          </Pressable>
+          <Text style={styles.topTitle}>Task Details</Text>
+        </View>
+        <View style={styles.loading}>
+          <Text style={styles.loadingText}>Loading task...</Text>
+        </View>
+      </Screen>
+    );
+  }
 
   const priorityColors = {
     high: { bg: '#FEE2E2', text: '#B91C1C' },
     medium: { bg: '#FFEDD5', text: '#C2410C' },
     low: { bg: '#DBEAFE', text: '#1D4ED8' },
   };
-
-  const priorityStyle = priorityColors[task.priority] || priorityColors.high;
-
-  const handleComplete = () => {
-    setTaskStatus('completed');
-    setTimeout(() => router.replace('/worker'), 1500);
-  };
+  const priorityStyle = priorityColors[task.priority] ?? null;
 
   return (
     <Screen edges={['top']}>
@@ -49,31 +102,33 @@ export default function TaskDetails() {
         <Card>
           <View style={styles.titleRow}>
             <Text style={styles.title}>{task.title}</Text>
-            <View style={[styles.priorityBadge, { backgroundColor: priorityStyle.bg }]}>
-              <Text style={[styles.priorityText, { color: priorityStyle.text }]}>
-                {task.priority.toUpperCase()}
-              </Text>
-            </View>
+            {priorityStyle ? (
+              <View style={[styles.priorityBadge, { backgroundColor: priorityStyle.bg }]}>
+                <Text style={[styles.priorityText, { color: priorityStyle.text }]}>
+                  {task.priority.toUpperCase()}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           <StatusBadge status={taskStatus} />
 
           <DetailRow icon={MapPin} label="Location" value={task.location} />
-          <DetailRow icon={Calendar} label="Assigned Date" value={task.assignedDate} />
-          <DetailRow icon={AlertCircle} label="Issue Type" value={task.issueType} />
+          {task.assignedDate ? (
+            <DetailRow icon={Calendar} label="Assigned Date" value={task.assignedDate} />
+          ) : null}
+          <DetailRow icon={AlertCircle} label="Issue Type" value={task.title} />
+          {task.userName ? (
+            <DetailRow icon={User} label="Reported by" value={task.userName} />
+          ) : null}
 
           <View style={styles.divider} />
           <Text style={styles.descLabel}>Description</Text>
-          <Text style={styles.desc}>{task.description}</Text>
-          <Text style={styles.byline}>Reported by: {task.reportedBy}</Text>
+          <Text style={styles.desc}>{task.description || 'No additional description provided.'}</Text>
         </Card>
 
         {taskStatus === 'pending' ? (
-          <PrimaryButton
-            title="Start Work"
-            onPress={() => setTaskStatus('in_progress')}
-            style={styles.actionBtn}
-          />
+          <PrimaryButton title="Start Work" onPress={handleStartWork} style={styles.actionBtn} />
         ) : null}
 
         {taskStatus === 'in_progress' ? (
@@ -132,6 +187,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    color: colors.textMuted,
+    fontSize: 16,
+  },
   content: {
     padding: spacing.md,
     gap: spacing.md,
@@ -183,16 +247,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     marginBottom: 4,
+    marginTop: spacing.md,
   },
   desc: {
     fontSize: 15,
     color: colors.textSecondary,
     lineHeight: 22,
-  },
-  byline: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: spacing.sm,
   },
   actionBtn: {
     marginTop: spacing.sm,

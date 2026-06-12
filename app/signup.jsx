@@ -10,7 +10,6 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter, Link } from 'expo-router';
-import { Picker } from '@react-native-picker/picker';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { signUp } from '../services/firebase';
 import { Screen } from '../components/shared/Screen';
@@ -27,7 +26,6 @@ export default function SignUpScreen() {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'user',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -54,7 +52,7 @@ export default function SignUpScreen() {
 
     const result = await signUp(formData.email.trim(), formData.password, {
       fullName: formData.fullName.trim(),
-      role: formData.role,
+      role: 'user',
     });
 
     if (result.success) {
@@ -91,20 +89,6 @@ export default function SignUpScreen() {
           />
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>I want to sign up as</Text>
-            <View style={styles.pickerWrap}>
-              <Picker
-                selectedValue={formData.role}
-                onValueChange={(value) => updateField('role', value)}
-              >
-                <Picker.Item label="Community Reporter (User)" value="user" />
-                <Picker.Item label="Field Worker" value="worker" />
-              </Picker>
-            </View>
-            <Text style={styles.hint}>Admin accounts can only be created by existing admins</Text>
-          </View>
-
-          <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordRow}>
               <TextInputLike
@@ -114,7 +98,9 @@ export default function SignUpScreen() {
                 secureTextEntry={!showPassword}
               />
               <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                {showPassword ? <EyeOff size={20} color={colors.textMuted} /> : <Eye size={20} color={colors.textMuted} />}
+                {showPassword
+                  ? <EyeOff size={20} color={colors.textMuted} />
+                  : <Eye size={20} color={colors.textMuted} />}
               </Pressable>
             </View>
           </View>
@@ -129,13 +115,17 @@ export default function SignUpScreen() {
                 secureTextEntry={!showConfirmPassword}
               />
               <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeBtn}>
-                {showConfirmPassword ? (
-                  <EyeOff size={20} color={colors.textMuted} />
-                ) : (
-                  <Eye size={20} color={colors.textMuted} />
-                )}
+                {showConfirmPassword
+                  ? <EyeOff size={20} color={colors.textMuted} />
+                  : <Eye size={20} color={colors.textMuted} />}
               </Pressable>
             </View>
+          </View>
+
+          <View style={styles.notice}>
+            <Text style={styles.noticeText}>
+              ℹ️  Worker and admin accounts are created by municipal administrators.
+            </Text>
           </View>
 
           <ErrorBanner message={error} />
@@ -192,18 +182,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 8,
   },
-  pickerWrap: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-    overflow: 'hidden',
-  },
-  hint: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 4,
-  },
   passwordRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -221,6 +199,17 @@ const styles = StyleSheet.create({
   },
   eyeBtn: {
     padding: 8,
+  },
+  notice: {
+    backgroundColor: '#EFF6FF',
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  noticeText: {
+    fontSize: 13,
+    color: '#1D4ED8',
+    lineHeight: 18,
   },
   footer: {
     marginTop: spacing.lg,

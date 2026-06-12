@@ -1,39 +1,101 @@
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import { Clipboard, Clock, CheckCircle2 } from 'lucide-react-native';
+import { useFocusEffect } from 'expo-router';
+import { Bell, Clipboard, CheckCircle2 } from 'lucide-react-native';
 import { Screen } from '../../components/shared/Screen';
 import { BottomNav } from '../../components/shared/BottomNav';
 import { PageHeader, Card } from '../../components/shared/ui';
+import { getJSON, setJSON } from '../../services/storage';
 import { colors, spacing } from '../../constants/theme';
 
-const notifications = [
-  { id: 1, type: 'new', title: 'New Task Assigned', message: 'You have been assigned to "Damaged Sign" - Park Avenue.', time: '30 minutes ago' },
-  { id: 2, type: 'reminder', title: 'Task Reminder', message: 'Please complete "Large Pothole" - Main St & 5th Ave.', time: '2 hours ago' },
-  { id: 3, type: 'success', title: 'Task Verified', message: 'Your completed task "Road Crack" has been verified.', time: '1 day ago' },
-];
+function buildNotifications(tasks, completed) {
+  const items = [];
+
+  tasks.forEach((t) => {
+    items.push({
+      id: `task-${t.id}`,
+      type: 'new',
+      title: 'New Task Assigned',
+      message: `You have been assigned to "${t.title}" — ${t.location}.`,
+      time: t.assignedDate ?? t.date,
+      sortKey: t.id,
+    });
+  });
+
+  completed.forEach((t) => {
+    items.push({
+      id: `done-${t.id}`,
+      type: 'success',
+      title: 'Task Completed',
+      message: `"${t.title}" was completed on ${t.completedDate ?? t.date}.`,
+      time: t.completedDate ?? t.date,
+      sortKey: t.id,
+    });
+  });
+
+  return items.sort((a, b) => b.sortKey - a.sortKey);
+}
 
 function getIcon(type) {
-  if (type === 'new') return <Clipboard size={24} color={colors.info} />;
-  if (type === 'reminder') return <Clock size={24} color={colors.warning} />;
-  return <CheckCircle2 size={24} color={colors.success} />;
+  if (type === 'new') return <Clipboard size={22} color={colors.info} />;
+  return <CheckCircle2 size={22} color={colors.success} />;
 }
 
 export default function WorkerNotifications() {
+  const [notifications, setNotifications] = useState([]);
+  const [seenKey, setSeenKey] = useState(0);
+
+  const loadNotifications = useCallback(async () => {
+    const [tasks, completed, lastSeen] = await Promise.all([
+      getJSON('workerTasks'),
+      getJSON('completedTasks'),
+      getJSON('workerNotifLastSeen', { ts: 0 }),
+    ]);
+
+    const items = buildNotifications(tasks, completed);
+    setNotifications(items);
+    setSeenKey(lastSeen.ts);
+
+    setTimeout(() => {
+      const now = items.length > 0 ? items[0].sortKey : Date.now();
+      setJSON('workerNotifLastSeen', { ts: now });
+    }, 1500);
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadNotifications(); }, [loadNotifications]));
+
   return (
     <Screen edges={['top']}>
       <PageHeader title="Notifications" />
       <ScrollView contentContainerStyle={styles.scroll}>
-        {notifications.map((notification) => (
-          <Card key={notification.id} style={styles.card}>
-            <View style={styles.row}>
-              {getIcon(notification.type)}
-              <View style={styles.content}>
-                <Text style={styles.title}>{notification.title}</Text>
-                <Text style={styles.message}>{notification.message}</Text>
-                <Text style={styles.time}>{notification.time}</Text>
-              </View>
-            </View>
+        {notifications.length === 0 ? (
+          <Card style={styles.emptyCard}>
+            <Bell size={40} color={colors.textMuted} />
+            <Text style={styles.emptyText}>No notifications yet</Text>
+            <Text style={styles.emptySub}>
+              New task assignments and completions will appear here.
+            </Text>
           </Card>
-        ))}
+        ) : (
+          notifications.map((n) => {
+            const isUnread = n.sortKey > seenKey;
+            return (
+              <Card key={n.id} style={[styles.card, isUnread && styles.unread]}>
+                <View style={styles.row}>
+                  <View style={styles.iconWrap}>{getIcon(n.type)}</View>
+                  <View style={styles.content}>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.title}>{n.title}</Text>
+                      {isUnread && <View style={styles.dot} />}
+                    </View>
+                    <Text style={styles.message}>{n.message}</Text>
+                    <Text style={styles.time}>{n.time}</Text>
+                  </View>
+                </View>
+              </Card>
+            );
+          })
+        )}
       </ScrollView>
       <BottomNav role="worker" />
     </Screen>
@@ -46,29 +108,64 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingBottom: spacing.lg,
   },
+  emptyCard: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: spacing.sm,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  emptySub: {
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
   card: {
     marginBottom: 0,
+  },
+  unread: {
+    borderLeftWidth: 4,
+    borderLeftColor: colors.warning,
   },
   row: {
     flexDirection: 'row',
     gap: spacing.sm,
+    alignItems: 'flex-start',
+  },
+  iconWrap: {
+    paddingTop: 2,
   },
   content: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: 4,
+  },
   title: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.text,
   },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.warning,
+  },
   message: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
-    marginTop: 4,
+    lineHeight: 18,
+    marginBottom: 4,
   },
   time: {
     fontSize: 12,
     color: colors.textMuted,
-    marginTop: 4,
   },
 });

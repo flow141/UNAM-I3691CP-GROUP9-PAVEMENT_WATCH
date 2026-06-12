@@ -16,12 +16,6 @@ import {
 } from '../../constants/maps';
 import { colors, spacing, radius } from '../../constants/theme';
 
-const fallbackTasks = [
-  { id: 1, title: 'Large Pothole', latitude: -22.5619, longitude: 17.0758, status: 'in_progress', location: 'Independence Ave', address: 'Independence Ave' },
-  { id: 2, title: 'Broken Sidewalk', latitude: -22.5559, longitude: 17.0658, status: 'pending', location: 'Sam Nujoma Dr', address: 'Sam Nujoma Dr' },
-  { id: 3, title: 'Damaged Sign', latitude: -22.5699, longitude: 17.0585, status: 'pending', location: 'Robert Mugabe Ave', address: 'Robert Mugabe Ave' },
-];
-
 export default function WorkerMap() {
   const router = useRouter();
   const [selectedTask, setSelectedTask] = useState(null);
@@ -31,8 +25,7 @@ export default function WorkerMap() {
     useCallback(() => {
       (async () => {
         const workerTasks = await getJSON('workerTasks');
-        const source = workerTasks.length ? workerTasks : fallbackTasks;
-        const nextMarkers = source
+        const nextMarkers = workerTasks
           .map((task) =>
             reportToMapMarker({
               ...task,

@@ -1,21 +1,38 @@
 import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import { MapPin, Calendar, CheckCircle } from 'lucide-react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { MapPin, Calendar, CheckCircle, ChevronRight } from 'lucide-react-native';
 import { Screen } from '../../components/shared/Screen';
 import { BottomNav } from '../../components/shared/BottomNav';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { Header, Card } from '../../components/shared/ui';
 import { getJSON, setJSON } from '../../services/storage';
+import { getReportsByStatuses } from '../../services/firebase';
 import { colors, spacing, radius } from '../../constants/theme';
 
 export default function WorkerDashboard() {
+  const router = useRouter();
   const [tasks, setTasks] = useState([]);
   const [completed, setCompleted] = useState([]);
 
   const loadTasks = useCallback(async () => {
-    setTasks(await getJSON('workerTasks'));
-    setCompleted(await getJSON('completedTasks'));
+    const [firestoreResult, localTasks, localCompleted] = await Promise.all([
+      getReportsByStatuses(['approved', 'in_progress']),
+      getJSON('workerTasks'),
+      getJSON('completedTasks'),
+    ]);
+
+    // Merge Firestore tasks with local cache, Firestore wins on dedup
+    const map = new Map();
+    firestoreResult.data.forEach((r) => map.set(String(r.id), r));
+    localTasks.forEach((r) => { if (!map.has(String(r.id))) map.set(String(r.id), r); });
+    const merged = [...map.values()];
+
+    // Sync back to local cache
+    await setJSON('workerTasks', merged);
+
+    setTasks(merged);
+    setCompleted(localCompleted);
   }, []);
 
   useFocusEffect(
@@ -73,25 +90,35 @@ export default function WorkerDashboard() {
           </Card>
         ) : (
           tasks.map((task) => (
-            <Card key={task.id} style={styles.taskCard}>
-              <Text style={styles.taskTitle}>{task.title}</Text>
-              <View style={styles.row}>
-                <MapPin size={16} color={colors.textSecondary} />
-                <Text style={styles.meta}>{task.location}</Text>
-              </View>
-              <View style={styles.row}>
-                <Calendar size={16} color={colors.textMuted} />
-                <Text style={styles.metaMuted}>Assigned: {task.assignedDate}</Text>
-              </View>
-              <Text style={styles.desc}>{task.description}</Text>
-              <View style={styles.taskFooter}>
-                <StatusBadge status="pending" size="sm" />
-                <Pressable style={styles.completeBtn} onPress={() => handleComplete(task)}>
-                  <CheckCircle size={16} color="#FFFFFF" />
-                  <Text style={styles.completeText}>Mark Complete</Text>
-                </Pressable>
-              </View>
-            </Card>
+            <Pressable key={task.id} onPress={() => router.push(`/worker/task/${task.id}`)}>
+              <Card style={styles.taskCard}>
+                <View style={styles.taskHeader}>
+                  <Text style={styles.taskTitle}>{task.title}</Text>
+                  <ChevronRight size={18} color={colors.textMuted} />
+                </View>
+                <View style={styles.row}>
+                  <MapPin size={16} color={colors.textSecondary} />
+                  <Text style={styles.meta}>{task.location}</Text>
+                </View>
+                <View style={styles.row}>
+                  <Calendar size={16} color={colors.textMuted} />
+                  <Text style={styles.metaMuted}>Assigned: {task.assignedDate}</Text>
+                </View>
+                {task.description ? (
+                  <Text style={styles.desc} numberOfLines={2}>{task.description}</Text>
+                ) : null}
+                <View style={styles.taskFooter}>
+                  <StatusBadge status={task.status || 'pending'} size="sm" />
+                  <Pressable
+                    style={styles.completeBtn}
+                    onPress={(e) => { e.stopPropagation?.(); handleComplete(task); }}
+                  >
+                    <CheckCircle size={16} color="#FFFFFF" />
+                    <Text style={styles.completeText}>Mark Complete</Text>
+                  </Pressable>
+                </View>
+              </Card>
+            </Pressable>
           ))
         )}
       </ScrollView>
@@ -150,11 +177,17 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },
+  taskHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
   taskTitle: {
+    flex: 1,
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: spacing.sm,
   },
   row: {
     flexDirection: 'row',

@@ -6,6 +6,7 @@ import { BottomNav } from '../../components/shared/BottomNav';
 import { GeoapifyMapView } from '../../components/shared/GeoapifyMapView';
 import { Header, Card, PrimaryButton } from '../../components/shared/ui';
 import { getJSON } from '../../services/storage';
+import { auth } from '../../services/firebase';
 import { getRegionForCoordinates, reportToMapMarker } from '../../constants/maps';
 import { colors, spacing, radius } from '../../constants/theme';
 
@@ -33,7 +34,10 @@ export default function UserDashboard() {
   return (
     <Screen edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Header title="Welcome, User!" subtitle="Report and track road issues" />
+        <Header
+          title={`Welcome, ${auth.currentUser?.displayName ?? auth.currentUser?.email?.split('@')[0] ?? 'User'}!`}
+          subtitle="Report and track road issues"
+        />
 
         <View style={styles.body}>
           <PrimaryButton
