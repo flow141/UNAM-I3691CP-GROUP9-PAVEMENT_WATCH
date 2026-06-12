@@ -9,7 +9,7 @@
 | Name             | Student Number | Role  |
 | ---------------- | -------------- | ----- |
 | Juuso SN         | 225045451      | Documentation lead        |
-| Matengu TT       | 224096281      | GitHub Manager       |
+| Matengu TT       | 224096281      | Documentation Lead       |
 | Ndakolute PN     | 225031809      | Firebase lead       |
 | Amushila AH      | 225085674      | Documentation lead       |
 | Neema W          | 222098694      | FireBase lead       |
