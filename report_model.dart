@@ -5,7 +5,7 @@ CXVDFB
 double latitude;
 
 double longitude;
-
+ADASFC D
 String status;
 
 Report({
