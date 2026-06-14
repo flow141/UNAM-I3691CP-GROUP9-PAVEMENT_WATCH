@@ -1,17 +1,3 @@
-import 'package:flutter/material.dart';
-import 'report_screen.dart';
-
-class HomeScreen extends StatelessWidget {
-
-@overrideCGHRTF
-
-Widget build(BuildContext context){
-
-return Scaffold(
-
-appBar: AppBar(
-
-title: Text("Pavement Watch"),
 
 ),
 
