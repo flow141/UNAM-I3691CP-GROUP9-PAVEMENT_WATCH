@@ -5,7 +5,7 @@ from screens.login_screen import LoginScreen
 from screens.register_screen import RegisterScreen
 from screens.inspector_screen import InspectorScreen
 from screens.report_defect_screen import ReportDefectScreen
-from screens.engineer_screen import EngineerScreen
+from screens.engineer_screemvn kjdkjgbk. xm .b fn import EngineerScreen
 from screens.supervisor_screen import SupervisorScreen
 from screens.admin_screen import AdminScreen
 
@@ -17,7 +17,7 @@ class MainWindow(QMainWindow):
 
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
-
+fg,opzerjpjnt,mdfsnkdlsn
         self.screens = {}
         self.add_screen("login", LoginScreen(self.switch_screen))
         self.add_screen("register", RegisterScreen(self.switch_screen))
@@ -33,8 +33,7 @@ class MainWindow(QMainWindow):
         self.screens[name] = widget
         self.stack.addWidget(widget)
 
-    def switch_screen(self, name):
-        if name in self.screens:
+    def switch_screen(self, name):hberh
             self.stack.setCurrentWidget(self.screens[name])
 
 if __name__ == "__main__":
@@ -57,7 +56,7 @@ def save_session(user_data):
 
 def clear_session():
     if os.path.exists(SESSION_FILE):
-        os.remove(SESSION_FILE)
+        os.remove(SESSION_FILE)cbxxghbsrsg
 
 def get_current_user():
     if os.path.exists(SESSION_FILE):
@@ -79,14 +78,13 @@ def login_user(email, password):
     profile = get_user_profile(uid)
     save_session({"uid": uid, "email": email})
     return profile
-
-def register_user(email, password, display_name, role, zone):
+fhdbfhbdfdrhisplay_name, role, zone):
     from services.firebase_config import get_auth, get_db
     firebase_auth = get_auth()
     db = get_db()
-    user = firebase_auth.create_user(
+    user = firebase_auth.create_usegb dgbsdgr(
         email=email, password=password, display_name=display_name
-    )
+    )gb
     profile = {
         "uid": user.uid,
         "displayName": display_name,
@@ -104,7 +102,7 @@ def logout_user():
 def reset_password(email):
     url = f"https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key={FIREBASE_WEB_API_KEY}"
     response = requests.post(url, json={
-        "requestType": "PASSWORD_RESET",
+        "requestType": "PASSWORD_gbgsdfgESET",
         "email": email,
     })
     data = response.json()
