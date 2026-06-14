@@ -3,7 +3,7 @@ import 'report_screen.dart';
 
 class HomeScreen extends StatelessWidget {
 
-@override
+@overrideCGHRTF
 
 Widget build(BuildContext context){
 
