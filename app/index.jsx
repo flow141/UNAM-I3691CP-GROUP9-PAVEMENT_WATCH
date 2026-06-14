@@ -1,14 +1,6 @@
 import { useState } from 'react';
-import {
-  Text,
-  Pressable,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
+import { View, Text, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter, Link } from 'expo-router';
-
 import { signIn } from '../services/firebase';
 import { Screen } from '../components/shared/Screen';
 import { AuthHeader } from '../components/auth/AuthHeader';
@@ -17,57 +9,31 @@ import { colors, spacing } from '../constants/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    // Clear previous errors
     setError('');
+    setLoading(true);
 
-    // Basic validation
-    if (!email.trim() || !password.trim()) {
-      setError('Please enter both email and password.');
-      return;
+    const result = await signIn(email.trim(), password);
+
+    if (result.success) {
+      router.replace(`/${result.role}`);
+    } else {
+      setError(result.error);
     }
 
-    try {
-      setLoading(true);
-
-      const result = await signIn(
-        email.trim().toLowerCase(),
-        password
-      );
-
-      if (result.success) {
-        router.replace(`/${result.role}`);
-      } else {
-        setError(result.error || 'Login failed.');
-      }
-    } catch (err) {
-      setError('Something went wrong. Please try again.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
   };
 
   return (
     <Screen style={styles.screen}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-        >
-          <AuthHeader
-            title="Pavement-Watch"
-            subtitle="Road Issue Reporting Platform"
-          />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <AuthHeader title="Pavement-Watch" subtitle="Road Issue Reporting Platform" />
 
           <Input
             label="Email"
@@ -95,7 +61,7 @@ export default function LoginScreen() {
           />
 
           <Text style={styles.footer}>
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/signup" asChild>
               <Pressable>
                 <Text style={styles.link}>Sign Up</Text>
