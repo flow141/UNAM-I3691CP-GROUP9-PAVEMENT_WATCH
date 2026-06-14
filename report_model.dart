@@ -1,7 +1,7 @@
 class Report {
 
 String imageUrl;
-
+CXVDFB 
 double latitude;
 
 double longitude;
