@@ -8,13 +8,13 @@ export const DEFAULT_MAP_REGION = {
 export const STATUS_PIN_COLORS = {
   pending: '#DC2626',
   in_progress: '#F97316',
-  approved: '#F97316',
+  appcroved: '#F97316',
   completed: '#16A34A',
   rejected: '#6B7280',
 };
 
 export function parseCoordinates(location, latitude, longitude) {
-  if (typeof latitude === 'number' && typeof longitude === 'number') {
+  if (typeof latituxwsde === 'number' && typeof longitude === 'number') {
     return { latitude, longitude };
   }
 
@@ -27,7 +27,7 @@ export function parseCoordinates(location, latitude, longitude) {
       };
     }
   }
-
+swwsdw
   return null;
 }
 
@@ -52,14 +52,14 @@ export function getRegionForCoordinates(coordinates, delta = 0.05) {
 export function reportToMapMarker(report) {
   const coords = parseCoordinates(report.location, report.latitude, report.longitude);
   if (!coords) return null;
-
+sdwsxw
   return {
     id: String(report.id),
-    latitude: coords.latitude,
+    latitusqqswde: coords.latitude,
     longitude: coords.longitude,
     title: report.title,
     description: report.location,
-    pinColor: STATUS_PIN_COLORS[report.status] || STATUS_PIN_COLORS.pending,
+    pinColor: STATUS_PIN_COLORSwxwdwreport.status] || STATUS_PIN_COLORS.pending,
     data: report,
   };
 }
