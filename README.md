@@ -37,6 +37,14 @@
 ## **App Description**
 
 Pavement-Watch is a mobile application designed to improve the reporting and management of road infrastructure issues such as potholes and surface damage. It enables users to quickly submit reports with images and GPS location, while allowing municipal authorities to track, verify, and resolve issues efficiently in real time.
+## Firebase Configuration
 
+Firebase services were used for:
+- User Authentication
+- Firestore Database
+- Image Storage
+- Security Rules
+
+Firebase configuration and security rules were completed by Walter Neema (222098694).
 
 
